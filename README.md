@@ -2,7 +2,7 @@
 
 Website, quoting, memberships, scheduling, and dashboards for a solar panel cleaning business based in Vacaville, CA.
 
-**Status: Phase 1 of 6.** Public site, design system, quote form, pricing engine, and the full database schema are built. Nothing is deployed, and no payments are possible yet.
+**Status: Phase 2 of 6.** Public site, quote form, pricing engine, full database schema, and customer accounts with a customer dashboard are built. Nothing is deployed, and no payments are possible yet.
 
 ## Tech
 
@@ -34,11 +34,25 @@ Open http://localhost:3000. The site runs **without Supabase** using default con
 4. Set `RATE_LIMIT_SALT` to any long random string.
 5. Restart `npm run dev`. Submit a test quote, then look at the `quote_requests` table in Supabase.
 
-Make yourself the owner (after you create an account in Phase 2):
+## Customer accounts (Phase 2)
+
+Sign-in is passwordless: customers enter their email and Supabase sends a one-time link.
+
+1. Run `supabase/migrations/20261028000004_customer_accounts.sql` in the Supabase SQL Editor (once).
+2. In Supabase, go to **Authentication → URL Configuration**:
+   - **Site URL:** `http://localhost:3000` for now (your real domain at launch).
+   - **Redirect URLs:** add `http://localhost:3000/**` (and later `https://yourdomain.com/**`).
+3. Visit `/login`, enter your email, and click the link in the email **in the same browser**.
+
+Past quote requests made with the same email are linked to the account automatically, but only after the email is confirmed.
+
+Make yourself the owner after your first sign-in:
 
 ```sql
 update public.profiles set role = 'owner' where email = 'you@yourdomain.com';
 ```
+
+**Before launch:** Supabase's built-in email service is for testing only. It sends a few emails per hour and may only deliver to your own team's addresses. Phase 6 connects Resend as the email provider so customers receive sign-in emails reliably.
 
 ## Tests
 
@@ -88,7 +102,7 @@ The owner dashboard (Phase 5) will provide screens for all of this. Until then, 
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Public site, design system, quote form, pricing engine, database schema | **Built** (see "Phase 1 verification" below) |
-| 2 | Customer accounts (Supabase Auth) and customer dashboard | Not started |
+| 2 | Customer accounts (Supabase Auth) and customer dashboard | **Built** |
 | 3 | Stripe test-mode checkout, subscriptions, billing portal, pricing controls | Not started |
 | 4 | Booking, availability, entitlements, rescheduling | Schema ready, logic not started |
 | 5 | Owner and technician dashboards | Not started |
@@ -103,4 +117,10 @@ What was actually tested:
 - **Database:** all migrations and seed applied to Postgres 16 with 12 test groups covering RLS for anonymous visitors, customers, technicians, and the owner; price immutability; double-booking prevention with travel buffers; entitlement rules; and the audit log.
 - **Syntax:** all 39 TypeScript/TSX files parse cleanly; business-logic files pass a strict type check.
 
-What was **not** tested yet: `npm install`, `next build`, and running the site in a browser. The development environment couldn't reach the npm registry. Run `npm install && npm run build` first and report any errors so they can be fixed. Supabase Storage uploads and the server actions against a real Supabase project are also untested until a project is connected.
+Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 routes), and a quote submission saved to Supabase.
+
+### Phase 2 verification
+
+- **Database:** 2 new test groups. Quotes link to an account only for a confirmed email that matches exactly (case-insensitive); unconfirmed or anonymous users can't claim anything; linking is idempotent and prefills the profile. Customers can edit only the technician instructions on their own property, never panel count or address.
+- **Unit tests:** 17 total, including Supabase URL normalization.
+- Not yet verified on a real machine: the sign-in email round trip, session refresh, and dashboard rendering against live data.

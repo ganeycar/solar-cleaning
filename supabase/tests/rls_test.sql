@@ -102,11 +102,11 @@ do $$ begin
   assert (select count(*) from public.properties) = 1, 'bob should see only his property';
   assert (select count(*) from public.bookings) = 0, 'bob must not see alice''s booking';
   assert (select count(*) from public.payments) = 0, 'bob must not see alice''s payment';
-  update public.properties set panel_count = 99 where id = '10000000-0000-0000-0000-0000000000a1';
+  update public.properties set technician_instructions = 'hacked' where id = '10000000-0000-0000-0000-0000000000a1';
 end $$;
 reset role;
 do $$ begin
-  assert (select panel_count from public.properties where id = '10000000-0000-0000-0000-0000000000a1') = 20, 'bob must not edit alice''s property';
+  assert (select technician_instructions from public.properties where id = '10000000-0000-0000-0000-0000000000a1') is null, 'bob must not edit alice''s property';
 end $$;
 
 \echo 'T8 technicians see assigned jobs and addresses, never billing'
@@ -173,5 +173,46 @@ do $$ begin
   assert (select count(*) from public.audit_log where table_name = 'payments') >= 1, 'payment audited';
   assert (select count(*) from public.audit_log where table_name = 'service_entitlements') >= 1, 'entitlement audited';
 end $$;
+
+\echo 'T13 customers edit only technician instructions on their own property'
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  update public.properties set technician_instructions = 'Gate code in the app; dog is friendly' where id = '10000000-0000-0000-0000-0000000000a1';
+  begin
+    update public.properties set panel_count = 5 where id = '10000000-0000-0000-0000-0000000000a1';
+    raise exception 'FAIL: customer changed panel count';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+\echo 'T14 quotes are linked to an account only with a confirmed, matching email'
+insert into public.quote_requests (first_name,last_name,email,phone,address_line1,city,state,postal_code,panel_count,property_type,stories,roof_type,access_type,cleaning_request,preferred_window)
+values ('Carol','Nguyen','Carol@Test.local','+17075550199','3 Carol Ct','Vacaville','CA','95687',18,'single_family',1,'unknown','unsure','one_time','flexible'),
+       ('Mallory','X','someone-else@test.local','+17075550100','4 Other St','Vacaville','CA','95687',10,'single_family',1,'unknown','unsure','one_time','flexible');
+insert into auth.users (id, email, email_confirmed_at) values ('00000000-0000-0000-0000-00000000000e', 'carol@test.local', null);
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000e';
+do $$ begin
+  assert public.claim_my_quotes() = 0, 'unconfirmed email must not claim quotes';
+  assert (select count(*) from public.quote_requests) = 0, 'carol sees nothing before confirming';
+end $$;
+reset role;
+update auth.users set email_confirmed_at = now() where id = '00000000-0000-0000-0000-00000000000e';
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000e';
+do $$ begin
+  assert public.claim_my_quotes() = 1, 'confirmed email claims exactly its own quote (case-insensitive)';
+  assert (select count(*) from public.quote_requests) = 1, 'carol sees her quote';
+  assert (select first_name from public.profiles where id = auth.uid()) = 'Carol', 'profile prefilled from quote';
+  assert public.claim_my_quotes() = 0, 'claiming is idempotent';
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin perform public.claim_my_quotes(); raise exception 'FAIL: anon called claim_my_quotes';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
 
 \echo 'ALL DATABASE TESTS PASSED'

@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { normalizeSupabaseUrl } from "./url.ts";
 
 /**
  * Server-only Supabase clients.
@@ -18,12 +19,6 @@ if (typeof window !== "undefined") {
 
 let publicClient: SupabaseClient | null | undefined;
 let adminClient: SupabaseClient | null | undefined;
-
-/** Accepts common copy/paste variants (trailing slash, /rest/v1, spaces) and returns the bare project URL. */
-export function normalizeSupabaseUrl(raw: string | undefined): string | undefined {
-  if (!raw) return undefined;
-  return raw.trim().replace(/\/+$/, "").replace(/\/rest\/v1$/, "").replace(/\/+$/, "") || undefined;
-}
 
 export function isSupabaseConfigured(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
