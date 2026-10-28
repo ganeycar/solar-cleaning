@@ -19,6 +19,10 @@ export async function generateMetadata(): Promise<Metadata> {
   };
 }
 
+// Business settings, plans, and prices live in Supabase. Re-check them at most
+// once a minute so dashboard changes appear without rebuilding the site.
+export const revalidate = 60;
+
 export const viewport: Viewport = { themeColor: "#0b1b33", width: "device-width", initialScale: 1 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
