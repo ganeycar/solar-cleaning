@@ -19,13 +19,19 @@ if (typeof window !== "undefined") {
 let publicClient: SupabaseClient | null | undefined;
 let adminClient: SupabaseClient | null | undefined;
 
+/** Accepts common copy/paste variants (trailing slash, /rest/v1, spaces) and returns the bare project URL. */
+export function normalizeSupabaseUrl(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  return raw.trim().replace(/\/+$/, "").replace(/\/rest\/v1$/, "").replace(/\/+$/, "") || undefined;
+}
+
 export function isSupabaseConfigured(): boolean {
   return Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
 export function getPublicClient(): SupabaseClient | null {
   if (publicClient !== undefined) return publicClient;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   publicClient = url && key ? createClient(url, key, { auth: { persistSession: false } }) : null;
   return publicClient;
@@ -33,7 +39,7 @@ export function getPublicClient(): SupabaseClient | null {
 
 export function getAdminClient(): SupabaseClient | null {
   if (adminClient !== undefined) return adminClient;
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const url = normalizeSupabaseUrl(process.env.NEXT_PUBLIC_SUPABASE_URL);
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   adminClient = url && key ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } }) : null;
   return adminClient;

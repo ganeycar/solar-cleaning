@@ -29,7 +29,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const settings = await getSiteSettings();
   const brandVars = `:root{--brand-navy:${settings.colors.navy};--brand-charcoal:${settings.colors.charcoal};--brand-gold:${settings.colors.gold};}`;
   return (
-    <html lang="en" className={`${archivo.variable} ${sourceSans.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${archivo.variable} ${sourceSans.variable}`}>
       <head>
         {/* Colors are validated hex values from business_settings. */}
         <style dangerouslySetInnerHTML={{ __html: brandVars }} />
