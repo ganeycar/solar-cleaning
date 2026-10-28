@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+/*
+  Brand colors come from business_settings (editable). The layout injects them
+  as --brand-* variables; these are the fallbacks.
+*/
+:root {
+  --brand-navy: #0b1b33;
+  --brand-charcoal: #1f2933;
+  --brand-gold: #e8b04a;
+}
+
+@theme {
+  --color-navy: var(--brand-navy);
+  --color-navy-900: color-mix(in oklab, var(--brand-navy) 88%, white);
+  --color-navy-800: color-mix(in oklab, var(--brand-navy) 75%, white);
+  --color-charcoal: var(--brand-charcoal);
+  --color-gold: var(--brand-gold);
+  --color-gold-soft: color-mix(in oklab, var(--brand-gold) 18%, white);
+  --color-paper: #f7f6f2;
+  --color-line: #e3e1da;
+  --color-muted: #5b6572;
+
+  --font-display: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-source-sans), ui-sans-serif, system-ui, sans-serif;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: white;
+  color: var(--color-charcoal);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { font-family: var(--font-display); letter-spacing: -0.02em; color: var(--color-navy); }
+
+:focus-visible { outline: 3px solid var(--color-gold); outline-offset: 2px; }
+
+/* Long-form legal and article text */
+.prose-site { max-width: 70ch; line-height: 1.7; }
+.prose-site h2 { font-size: 1.4rem; font-weight: 700; margin: 2.25rem 0 0.75rem; }
+.prose-site h3 { font-size: 1.1rem; font-weight: 700; margin: 1.5rem 0 0.5rem; }
+.prose-site p, .prose-site ul, .prose-site ol { margin: 0 0 1rem; }
+.prose-site ul { list-style: disc; padding-left: 1.25rem; }
+.prose-site ol { list-style: decimal; padding-left: 1.25rem; }
+.prose-site li { margin: 0.25rem 0; }
+.prose-site a { color: var(--color-navy); text-decoration: underline; text-underline-offset: 3px; }
+
+.field {
+  width: 100%;
+  border: 1px solid var(--color-line);
+  border-radius: 0.5rem;
+  padding: 0.7rem 0.85rem;
+  background: white;
+  font-size: 1rem;
+}
+.field:focus { border-color: var(--color-navy); outline: 2px solid var(--color-gold); outline-offset: 0; }
+.field[aria-invalid="true"] { border-color: #b42318; }
