@@ -45,6 +45,7 @@ export async function loadCheckoutContext(quoteId: string): Promise<CheckoutCont
     .from("quote_requests")
     .select("id,status,approved_price_cents,panel_count,address_line1,city,cleaning_request")
     .eq("id", quoteId)
+    .eq("customer_id", session.user.id)
     .maybeSingle();
   if (!q) return null;
 

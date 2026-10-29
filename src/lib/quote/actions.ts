@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
 import { getAdminClient } from "@/lib/supabase/admin";
+import { getCurrentUser } from "@/lib/supabase/server";
 import { calculateQuote, formatCents, type QuoteStatus } from "@/lib/pricing/engine";
 import { loadPricingConfig } from "@/lib/pricing/load";
 import { clientIp, hashIp, isRateLimited } from "@/lib/rate-limit";
@@ -86,8 +87,12 @@ async function processQuote(form: FormData): Promise<QuoteFormState> {
     : null;
   const status: QuoteStatus = result?.status ?? "pricing_unpublished";
 
+  // Signed-in customers' quotes belong to their account immediately.
+  const session = await getCurrentUser();
+
   const { error } = await db.from("quote_requests").insert({
     id: reference,
+    customer_id: session?.user.id ?? null,
     territory_id: result?.zoneId ?? null,
     first_name: data.firstName,
     last_name: data.lastName,

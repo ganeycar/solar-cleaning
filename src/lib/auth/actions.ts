@@ -95,6 +95,7 @@ export async function updatePropertyInstructions(_prev: SaveState, form: FormDat
     .from("properties")
     .update({ technician_instructions: text(form, "technicianInstructions", 2000) || null })
     .eq("id", propertyId)
+    .eq("customer_id", session.user.id)
     .select("id");
 
   if (error || !data?.length) {

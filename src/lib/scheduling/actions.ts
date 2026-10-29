@@ -65,7 +65,7 @@ export async function bookCleaning(form: FormData): Promise<void> {
   if (!UUID.test(propertyId)) back({ error: "error" });
 
   // RLS: only the customer's own property is returned.
-  const { data: property } = await session.supabase.from("properties").select("id, panel_count").eq("id", propertyId).maybeSingle();
+  const { data: property } = await session.supabase.from("properties").select("id, panel_count").eq("id", propertyId).eq("customer_id", session.user.id).maybeSingle();
   if (!property) back({ error: "error" });
 
   const found = await findSlot(admin, startIso, property.panel_count);
@@ -77,6 +77,7 @@ export async function bookCleaning(form: FormData): Promise<void> {
   const { data: credits } = await session.supabase
     .from("service_entitlements")
     .select("id, subscription_id, valid_from, valid_until")
+    .eq("customer_id", session.user.id)
     .eq("status", "available")
     .lte("valid_from", day)
     .gte("valid_until", day)
@@ -117,6 +118,7 @@ export async function rescheduleCleaning(bookingId: string, form: FormData): Pro
     .from("bookings")
     .select("id, scheduled_start, status, subscription_id, properties(panel_count)")
     .eq("id", bookingId)
+    .eq("customer_id", session.user.id)
     .maybeSingle();
   if (!booking) back({ error: "error" });
   const settings = await loadSchedulingSettings(admin);
@@ -150,7 +152,7 @@ export async function cancelCleaning(bookingId: string): Promise<void> {
   const admin = getAdminClient();
   if (!admin || !UUID.test(bookingId)) redirect("/dashboard?schedule=error");
 
-  const { data: booking } = await session.supabase.from("bookings").select("id, scheduled_start").eq("id", bookingId).maybeSingle();
+  const { data: booking } = await session.supabase.from("bookings").select("id, scheduled_start").eq("id", bookingId).eq("customer_id", session.user.id).maybeSingle();
   if (!booking) redirect("/dashboard?schedule=error");
   const settings = await loadSchedulingSettings(admin);
   if (!canChangeBooking(new Date(booking.scheduled_start), new Date(), settings.rescheduleCutoffHours)) redirect("/dashboard?schedule=cutoff");

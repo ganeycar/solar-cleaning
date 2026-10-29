@@ -40,14 +40,14 @@ export default async function SchedulePage({ searchParams }: Props) {
   // Reschedule mode
   let booking: Row | null = null;
   if (sp.booking) {
-    const { data } = await supabase.from("bookings").select("id, scheduled_start, status, property_id, properties(id, address_line1, city, panel_count)").eq("id", sp.booking).maybeSingle();
+    const { data } = await supabase.from("bookings").select("id, scheduled_start, status, property_id, properties(id, address_line1, city, panel_count)").eq("id", sp.booking).eq("customer_id", session.user.id).maybeSingle();
     booking = data;
     if (!booking) redirect("/dashboard");
   }
 
   const [{ data: properties }, { data: credits }] = await Promise.all([
-    supabase.from("properties").select("id, address_line1, city, panel_count").order("created_at"),
-    supabase.from("service_entitlements").select("id, valid_from, valid_until").eq("status", "available").gte("valid_until", localDate(now, tz)),
+    supabase.from("properties").select("id, address_line1, city, panel_count").eq("customer_id", session.user.id).order("created_at"),
+    supabase.from("service_entitlements").select("id, valid_from, valid_until").eq("customer_id", session.user.id).eq("status", "available").gte("valid_until", localDate(now, tz)),
   ]);
   const props = (properties ?? []) as Row[];
   const available = (credits ?? []) as Row[];

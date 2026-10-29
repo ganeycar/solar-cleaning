@@ -5,7 +5,9 @@ import { redirect } from "next/navigation";
 import { requireStaff } from "@/lib/auth/staff";
 import { dollarsToCents } from "@/lib/money";
 import { parsePricingForm } from "@/lib/pricing/config-form";
+import { handleStripeEvent } from "@/lib/billing/webhook";
 import { getStripe, isMissing } from "@/lib/stripe/client";
+import { getAdminClient } from "@/lib/supabase/admin";
 
 /*
  * Owner actions. Every action re-checks staff access, then writes through the
@@ -235,4 +237,36 @@ export async function saveTerritory(territoryId: string, form: FormData) {
     .eq("id", territoryId);
   if (error) fail(path, `Couldn't save: ${error.message}`);
   done(path, "Service area saved.");
+}
+
+// ---------------- Payment confirmations ----------------
+
+/**
+ * Re-processes Stripe events that failed earlier (e.g. after a bug fix).
+ * Each event is fetched fresh from Stripe, so nothing from the browser is trusted.
+ */
+export async function retryFailedStripeEvents() {
+  await requireStaff();
+  const path = "/admin/quotes";
+  const stripeRes = getStripe();
+  const admin = getAdminClient();
+  if (!stripeRes.ok || !admin) fail(path, "Stripe or Supabase isn't configured.");
+
+  const { data: failed } = await admin.from("stripe_events").select("id").is("processed_at", null).order("received_at").limit(25);
+  let ok = 0;
+  const errors: string[] = [];
+  for (const row of (failed ?? []) as { id: string }[]) {
+    try {
+      const event = await stripeRes.stripe.events.retrieve(row.id);
+      await handleStripeEvent(stripeRes.stripe, admin, event);
+      await admin.from("stripe_events").update({ processed_at: new Date().toISOString(), error: null }).eq("id", row.id);
+      ok++;
+    } catch (err) {
+      const message = (err as Error).message ?? String(err);
+      await admin.from("stripe_events").update({ error: message.slice(0, 1000) }).eq("id", row.id);
+      errors.push(message);
+    }
+  }
+  if (errors.length) fail(path, `Processed ${ok}; ${errors.length} still failing: ${errors[0]}`);
+  done(path, ok ? `Processed ${ok} payment confirmation${ok === 1 ? "" : "s"}.` : "Nothing to retry.");
 }

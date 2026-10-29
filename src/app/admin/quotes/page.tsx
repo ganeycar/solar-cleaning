@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { btn, DollarInput, Feedback } from "@/components/admin-ui";
-import { approveQuote, declineQuote } from "@/lib/admin/actions";
+import { approveQuote, declineQuote, retryFailedStripeEvents } from "@/lib/admin/actions";
 import { requireStaff } from "@/lib/auth/staff";
 import { centsToInput } from "@/lib/money";
 import { formatCents } from "@/lib/pricing/engine";
@@ -30,6 +30,11 @@ export default async function AdminQuotesPage({ searchParams }: { searchParams: 
   const { data } = await query;
   const quotes = (data ?? []) as Row[];
 
+  const admin0 = getAdminClient();
+  const { data: failedEvents } = admin0
+    ? await admin0.from("stripe_events").select("id, type, error").is("processed_at", null).order("received_at", { ascending: false }).limit(25)
+    : { data: [] as { id: string; type: string; error: string | null }[] };
+
   // Private photos are shown through short-lived signed links.
   const photoUrls = new Map<string, string>();
   const allPaths = quotes.flatMap((q) => (q.photo_paths ?? []) as string[]);
@@ -49,6 +54,17 @@ export default async function AdminQuotesPage({ searchParams }: { searchParams: 
         ))}
       </nav>
       <Feedback msg={msg} error={error} />
+      {(failedEvents ?? []).length > 0 && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-900">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span><strong>{(failedEvents ?? []).length} payment confirmation{(failedEvents ?? []).length === 1 ? "" : "s"} from Stripe didn&apos;t finish processing.</strong> The customer was charged, so retry these.</span>
+            <form action={retryFailedStripeEvents}><button className={btn.primary}>Retry now</button></form>
+          </div>
+          <ul className="mt-2 list-disc pl-5 text-xs">
+            {(failedEvents ?? []).slice(0, 5).map((e) => <li key={e.id}>{e.type}: {e.error ?? "not processed yet"}</li>)}
+          </ul>
+        </div>
+      )}
 
       {quotes.length === 0 && <p className="rounded-2xl border border-line bg-white p-6 text-muted">Nothing here right now.</p>}
 

@@ -77,16 +77,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const nowIso = new Date().toISOString();
   const today = nowIso.slice(0, 10);
 
-  // All reads go through RLS as this user.
+  // Link any quotes made with this (verified) email, e.g. ones submitted while signed in.
+  await supabase.rpc("claim_my_quotes");
+
+  // All reads go through RLS as this user AND are filtered to this user, because
+  // owner/admin accounts can read every customer's records.
   const [profileRes, quotesRes, propertiesRes, subsRes, entRes, upcomingRes, pastRes, paymentsRes] = await Promise.all([
     supabase.from("profiles").select("role,first_name,last_name,phone,email,marketing_email_opt_in,marketing_sms_opt_in,stripe_customer_id").eq("id", user.id).maybeSingle(),
-    supabase.from("quote_requests").select("id,created_at,address_line1,city,panel_count,cleaning_request,status,approved_price_cents").order("created_at", { ascending: false }).limit(20),
-    supabase.from("properties").select("id,address_line1,address_line2,city,postal_code,panel_count,stories,technician_instructions").order("created_at"),
-    supabase.from("subscriptions").select("id,status,current_period_end,cancel_at_period_end,plans(name),plan_prices(amount_cents,billing_interval)").order("created_at", { ascending: false }),
-    supabase.from("service_entitlements").select("status,valid_until"),
-    supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").gte("scheduled_start", nowIso).in("status", ["requested", "confirmed", "weather_hold", "rescheduled"]).order("scheduled_start").limit(5),
-    supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").lt("scheduled_start", nowIso).order("scheduled_start", { ascending: false }).limit(10),
-    supabase.from("payments").select("id,created_at,amount_cents,refunded_cents,status,description").order("created_at", { ascending: false }).limit(10),
+    supabase.from("quote_requests").select("id,created_at,address_line1,city,panel_count,cleaning_request,status,approved_price_cents").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(20),
+    supabase.from("properties").select("id,address_line1,address_line2,city,postal_code,panel_count,stories,technician_instructions").eq("customer_id", user.id).order("created_at"),
+    supabase.from("subscriptions").select("id,status,current_period_end,cancel_at_period_end,plans(name),plan_prices(amount_cents,billing_interval)").eq("customer_id", user.id).order("created_at", { ascending: false }),
+    supabase.from("service_entitlements").select("status,valid_until").eq("customer_id", user.id),
+    supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").eq("customer_id", user.id).gte("scheduled_start", nowIso).in("status", ["requested", "confirmed", "weather_hold", "rescheduled"]).order("scheduled_start").limit(5),
+    supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").eq("customer_id", user.id).lt("scheduled_start", nowIso).order("scheduled_start", { ascending: false }).limit(10),
+    supabase.from("payments").select("id,created_at,amount_cents,refunded_cents,status,description").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(10),
   ]);
 
   const profile = (profileRes.data ?? {}) as Row;
