@@ -97,6 +97,8 @@ export async function submitQuote(_prev: QuoteFormState, form: FormData): Promis
     review_reasons: result?.reviewReasons ?? [],
     engine_result: result,
     pricing_rules_version: result?.pricingVersion ?? null,
+    // Auto-priced quotes can be booked right away at this price.
+    approved_price_cents: status === "priced" ? result?.customerPriceCents ?? null : null,
     marketing_email_opt_in: data.marketingEmailOptIn,
     marketing_sms_opt_in: data.marketingSmsOptIn,
     referral_code: data.referralCode || null,

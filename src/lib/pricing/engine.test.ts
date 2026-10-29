@@ -109,3 +109,11 @@ test("missing tiers force review", () => {
   const r = calculateQuote({ ...config, panelTiers: [] }, input);
   assert.equal(r.status, "needs_review");
 });
+
+test("unknown roofs and uncertain or roof access are reviewed even if settings omit them", () => {
+  const lax = { ...config, review: { ...config.review, reviewRoofTypes: [], reviewAccessTypes: [] } };
+  assert.equal(calculateQuote(lax, { ...input, roofType: "unknown" }).status, "needs_review");
+  assert.equal(calculateQuote(lax, { ...input, accessType: "unsure" }).status, "needs_review");
+  assert.equal(calculateQuote(lax, { ...input, accessType: "roof_access_required" }).status, "needs_review");
+  assert.equal(calculateQuote(lax, input).status, "priced");
+});

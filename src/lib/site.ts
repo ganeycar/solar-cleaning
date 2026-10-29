@@ -72,7 +72,11 @@ const HEX = /^#[0-9a-fA-F]{6}$/;
 export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   const db = getPublicClient();
   if (!db) return DEFAULT_SETTINGS;
-  const { data, error } = await db.from("business_settings").select("*").eq("id", 1).maybeSingle();
+  const { data, error } = await db
+    .from("business_settings")
+    .select("business_name,tagline,phone,email,headquarters_city,headquarters_state,logo_url,brand_colors,license_info,license_verified,insurance_info,insurance_verified")
+    .eq("id", 1)
+    .maybeSingle();
   if (error || !data) return DEFAULT_SETTINGS;
   const colors = { ...DEFAULT_SETTINGS.colors };
   for (const k of ["navy", "charcoal", "gold"] as const) {

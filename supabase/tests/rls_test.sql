@@ -215,4 +215,99 @@ do $$ begin
 end $$;
 reset role;
 
+\echo 'T15 public can read business settings but not internal Stripe ids'
+set role anon;
+do $$ begin
+  assert (select business_name from public.business_settings where id = 1) = 'Solar Cleaning Co.', 'anon reads business name';
+  begin perform stripe_portal_config_id from public.business_settings; raise exception 'FAIL: anon read portal config id';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+\echo 'T16 only the owner can publish prices; publishing archives the previous version'
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ declare pid uuid; begin
+  select pp.id into pid from public.plan_prices pp join public.plans p on p.id = pp.plan_id where p.slug = 'seasonal-care' and pp.billing_interval = 'month';
+  begin perform public.publish_plan_price(pid); raise exception 'FAIL: customer published a price';
+  exception when insufficient_privilege then null; end;
+end $$;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+do $$ declare plan uuid; v1 uuid; v2 uuid; begin
+  select id into plan from public.plans where slug = 'seasonal-care';
+  select id into v1 from public.plan_prices where plan_id = plan and billing_interval = 'month';
+  begin perform public.publish_plan_price(v1); raise exception 'FAIL: published without amount';
+  exception when raise_exception then null; end;
+  update public.plan_prices set amount_cents = 2900 where id = v1;
+  perform public.publish_plan_price(v1);
+  insert into public.plan_prices (plan_id, billing_interval, amount_cents) values (plan, 'month', 3400) returning id into v2;
+  perform public.publish_plan_price(v2);
+  assert (select status from public.plan_prices where id = v1) = 'archived', 'old price archived';
+  assert (select status from public.plan_prices where id = v2) = 'published', 'new price published';
+  assert (select count(*) from public.plan_prices where plan_id = plan and billing_interval = 'month' and status = 'published') = 1, 'one published price';
+  assert (select amount_cents from public.plan_prices where id = v1) = 2900, 'old price amount preserved';
+  perform public.unpublish_plan_price(v2);
+  assert (select count(*) from public.plan_prices where plan_id = plan and billing_interval = 'month' and status = 'published') = 0, 'unpublished';
+end $$;
+reset role;
+
+\echo 'T17 quote-pricing versions: owner publishes, previous is archived, history is immutable'
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+do $$ declare r1 uuid; r2 uuid; begin
+  select id into r1 from public.pricing_rules where version = 1;
+  perform public.publish_pricing_rules(r1);
+  insert into public.pricing_rules (version, config) values (2, '{"baseVisitCents": 100}') returning id into r2;
+  perform public.publish_pricing_rules(r2);
+  assert (select status from public.pricing_rules where id = r1) = 'archived', 'v1 archived';
+  assert (select status from public.pricing_rules where id = r2) = 'published', 'v2 published';
+  begin update public.pricing_rules set config = '{}' where id = r2; raise exception 'FAIL: edited published pricing';
+  exception when raise_exception then
+    if sqlerrm not like 'Published or archived pricing%' then raise; end if;
+  end;
+  perform public.unpublish_pricing_rules();
+  assert (select count(*) from public.pricing_rules where status = 'published') = 0, 'no published pricing';
+end $$;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  begin perform public.publish_pricing_rules((select id from public.pricing_rules limit 1)); raise exception 'FAIL: customer published pricing';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+\echo 'T18 paid quotes create exactly one property, only from server code'
+do $$ declare q uuid; begin
+  insert into public.quote_requests (customer_id, first_name,last_name,email,phone,address_line1,city,state,postal_code,panel_count,property_type,stories,roof_type,access_type,access_details,cleaning_request,preferred_window)
+  values ('00000000-0000-0000-0000-00000000000b','Alice','A','alice@test.local','+17075550101','9 New Home Ln','Vacaville','CA','95687',22,'single_family',1,'composition_shingle','ground_reachable','Side gate','one_time','flexible')
+  returning id into q;
+  perform set_config('test.quote', q::text, false);
+end $$;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  begin perform public.ensure_property_for_quote(current_setting('test.quote')::uuid); raise exception 'FAIL: customer created property directly';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+set role service_role;
+do $$ declare p1 uuid; p2 uuid; begin
+  p1 := public.ensure_property_for_quote(current_setting('test.quote')::uuid);
+  p2 := public.ensure_property_for_quote(current_setting('test.quote')::uuid);
+  assert p1 = p2, 'second call returns the same property';
+end $$;
+reset role;
+do $$ begin
+  assert (select count(*) from public.properties where address_line1 = '9 New Home Ln') = 1, 'exactly one property';
+  assert (select technician_instructions from public.properties where address_line1 = '9 New Home Ln') = 'Side gate', 'access details carried over';
+end $$;
+
+\echo 'T19 entitlements can only be issued once per source'
+do $$ begin
+  insert into public.service_entitlements (customer_id, source, valid_from, valid_until, source_ref) values ('00000000-0000-0000-0000-00000000000b', 'one_time_purchase', '2027-01-01', '2027-12-31', 'pi_test_abc');
+  begin
+    insert into public.service_entitlements (customer_id, source, valid_from, valid_until, source_ref) values ('00000000-0000-0000-0000-00000000000b', 'one_time_purchase', '2027-01-01', '2027-12-31', 'pi_test_abc');
+    raise exception 'FAIL: duplicate entitlement';
+  exception when unique_violation then null; end;
+end $$;
+
 \echo 'ALL DATABASE TESTS PASSED'

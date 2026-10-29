@@ -26,6 +26,7 @@ export function PlanCards({ plans, includeCommercial = true }: { plans: Plan[]; 
                 <div className="space-y-1">
                   {plan.prices.map((p) => (
                     <p key={p.interval} className="font-display text-navy">
+                      {plan.kind === "one_time" && <span className="text-sm text-muted">Starting at </span>}
                       <span className="text-2xl font-extrabold">{formatCents(p.amountCents)}</span>{" "}
                       <span className="text-sm text-muted">{INTERVAL_LABEL[p.interval]}</span>
                     </p>

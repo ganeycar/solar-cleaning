@@ -5,7 +5,7 @@ import { supabaseEnv } from "@/lib/supabase/url";
 /**
  * Next.js 16 proxy (formerly "middleware"). Runs only on account routes:
  * refreshes the Supabase session cookie and sends signed-out visitors from the
- * dashboard to the login page. Public pages are untouched and stay fast.
+ * dashboard, checkout, and owner pages to the login page. Public pages are untouched and stay fast.
  */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
@@ -27,7 +27,8 @@ export async function proxy(request: NextRequest) {
 
   const { data } = await supabase.auth.getUser();
 
-  if (!data.user && request.nextUrl.pathname.startsWith("/dashboard")) {
+  const protectedPath = ["/dashboard", "/checkout", "/admin"].some((p) => request.nextUrl.pathname.startsWith(p));
+  if (!data.user && protectedPath) {
     const login = request.nextUrl.clone();
     login.pathname = "/login";
     login.search = "";
@@ -38,5 +39,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login"],
+  matcher: ["/dashboard/:path*", "/checkout/:path*", "/admin/:path*", "/login"],
 };

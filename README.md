@@ -2,7 +2,7 @@
 
 Website, quoting, memberships, scheduling, and dashboards for a solar panel cleaning business based in Vacaville, CA.
 
-**Status: Phase 2 of 6.** Public site, quote form, pricing engine, full database schema, and customer accounts with a customer dashboard are built. Nothing is deployed, and no payments are possible yet.
+**Status: Phase 3 of 6.** Public site, quote form, pricing engine, database, customer accounts and dashboard, Stripe checkout and memberships (test mode), and owner pricing tools are built. Nothing is deployed, and live payments are blocked until you approve them.
 
 ## Tech
 
@@ -54,6 +54,35 @@ update public.profiles set role = 'owner' where email = 'you@yourdomain.com';
 
 **Before launch:** Supabase's built-in email service is for testing only. It sends a few emails per hour and may only deliver to your own team's addresses. Phase 6 connects Resend as the email provider so customers receive sign-in emails reliably.
 
+## Payments and owner tools (Phase 3)
+
+### One-time setup
+
+1. Run `supabase/migrations/20261028000005_billing.sql` in the Supabase SQL Editor (once).
+2. Put your Stripe **test** keys in `.env.local` (`STRIPE_SECRET_KEY=sk_test_…`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_…`). The app refuses `sk_live_` keys unless `STRIPE_LIVE_MODE_APPROVED=true`.
+3. Forward Stripe webhooks to your computer with the Stripe CLI:
+   ```bash
+   brew install stripe/stripe-cli/stripe   # or download from github.com/stripe/stripe-cli/releases
+   stripe login
+   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   ```
+   Copy the `whsec_…` value it prints into `.env.local` as `STRIPE_WEBHOOK_SECRET=`, restart `npm run dev`, and leave `stripe listen` running in its own Terminal tab while testing.
+
+### Owner tools (`/admin`, owner or admin role only)
+
+- **Quotes:** review requests, see photos and the engine's estimate, approve a price (the customer can then book and pay online) or decline.
+- **Plans & prices:** prices start as private drafts; publishing makes them live and, for memberships, creates the matching Stripe price. Published prices are never edited: a new version replaces them, and existing members keep their price. Edit plan names, benefits, limits, and panel caps.
+- **Quote pricing & areas:** base price, per-panel tiers, story and ladder charges, minimums, membership discounts, review rules, travel fees, and which cities accept new customers. Each save is a new version; "Save and publish" turns on instant prices.
+
+### How payment works
+
+- Customers book from **Book now** on a quote in their dashboard (`/checkout/<quote>`).
+- One-time cleanings charge the quote's approved price. Memberships charge the plan's published price and are offered only when the system fits the plan's panel limit.
+- Memberships show the automatic-renewal terms next to an unchecked consent box; the exact disclosure, time, and terms version are stored with the subscription (keep for at least 3 years).
+- **Nothing is marked paid from the browser.** Only verified Stripe webhooks record payments, create the customer's property, mark the quote booked, and (for one-time cleanings) add one cleaning credit valid for 12 months. Each Stripe event is processed once.
+- Members manage cards, see receipts, switch plans, and cancel online through Stripe's billing portal (configured automatically; cancellation takes effect at the end of the period).
+- Test card: `4242 4242 4242 4242`, any future date, any CVC, any ZIP.
+
 ## Tests
 
 ```bash
@@ -103,7 +132,7 @@ The owner dashboard (Phase 5) will provide screens for all of this. Until then, 
 |---|---|---|
 | 1 | Public site, design system, quote form, pricing engine, database schema | **Built** (see "Phase 1 verification" below) |
 | 2 | Customer accounts (Supabase Auth) and customer dashboard | **Built** |
-| 3 | Stripe test-mode checkout, subscriptions, billing portal, pricing controls | Not started |
+| 3 | Stripe test-mode checkout, subscriptions, billing portal, pricing controls | **Built** |
 | 4 | Booking, availability, entitlements, rescheduling | Schema ready, logic not started |
 | 5 | Owner and technician dashboards | Not started |
 | 6 | Email, reporting, lead follow-up, SEO, launch prep | Not started |
@@ -123,4 +152,15 @@ Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 ro
 
 - **Database:** 2 new test groups. Quotes link to an account only for a confirmed email that matches exactly (case-insensitive); unconfirmed or anonymous users can't claim anything; linking is idempotent and prefills the profile. Customers can edit only the technician instructions on their own property, never panel count or address.
 - **Unit tests:** 17 total, including Supabase URL normalization.
-- Not yet verified on a real machine: the sign-in email round trip, session refresh, and dashboard rendering against live data.
+- Confirmed by the owner on a real machine: sign-in email, account linking, and the dashboard.
+
+### Phase 3 verification
+
+- **Database (5 new test groups, 19 total):** only the owner can publish prices or pricing versions; publishing archives the previous version and keeps its amount; published pricing versions can't be edited; the public can't read internal Stripe ids; paid quotes create exactly one property and only from server code; cleaning credits can't be issued twice.
+- **Unit tests (30 total):** checkout eligibility (unpriced, unpublished, unsynced, over-panel-limit, unreviewed quotes are all blocked), renewal disclosure content and length, live-key refusal, reading Stripe objects across API versions, dollar parsing, the owner pricing form, and the engine's safety floor (unknown roofs and uncertain or roof access are always reviewed, whatever the settings say).
+- **Type check:** all app code was checked against simplified stand-ins for Next.js, Supabase and Stripe, which caught and fixed one real error.
+- Not yet verified: real Stripe calls (checkout, webhooks, portal, publishing prices) and `npm run build` with the Stripe package. These need the owner's machine and Stripe test mode.
+
+### Open decision before Phase 4
+
+How members earn included cleanings (all at the start of the membership year, or spread across it, e.g. Seasonal Care's second cleaning after six months of payments) affects what happens if someone cancels early. Phase 4 issues membership cleanings according to that choice.

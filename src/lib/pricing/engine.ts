@@ -119,6 +119,9 @@ function tierFor(config: PricingConfig, panelCount: number): PanelTier | null {
   return match;
 }
 
+/** Access types that always require a person to review the job. */
+export const ALWAYS_REVIEW_ACCESS: AccessType[] = ["unsure", "roof_access_required"];
+
 export function reviewReasonsFor(config: PricingConfig, input: QuoteInput): string[] {
   const r: string[] = [];
   const rv = config.review;
@@ -126,8 +129,11 @@ export function reviewReasonsFor(config: PricingConfig, input: QuoteInput): stri
   if (rv.reviewPropertyTypes.includes(input.propertyType)) r.push(`Property type "${input.propertyType}" requires review.`);
   if (input.panelCount > rv.maxAutoPanels) r.push(`More than ${rv.maxAutoPanels} panels.`);
   if (input.stories > rv.maxAutoStories) r.push(`More than ${rv.maxAutoStories} stories.`);
-  if (rv.reviewRoofTypes.includes(input.roofType)) r.push(`Roof type "${input.roofType}" requires a safety review.`);
-  if (rv.reviewAccessTypes.includes(input.accessType)) r.push(`Access "${input.accessType}" requires a safety review.`);
+  // Safety floor: these can never be auto-priced, whatever the settings say.
+  const roofNeedsReview = input.roofType === "unknown" || rv.reviewRoofTypes.includes(input.roofType);
+  const accessNeedsReview = ALWAYS_REVIEW_ACCESS.includes(input.accessType) || rv.reviewAccessTypes.includes(input.accessType);
+  if (roofNeedsReview) r.push(`Roof type "${input.roofType}" requires a safety review.`);
+  if (accessNeedsReview) r.push(`Access "${input.accessType}" requires a safety review.`);
   if (config.panelTiers.length === 0) r.push("No per-panel pricing tiers are configured.");
   return r;
 }

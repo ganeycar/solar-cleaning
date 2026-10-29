@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { InstructionsForm, ProfileForm } from "@/components/account-forms";
 import { ButtonLink, Container } from "@/components/ui";
 import { signOut } from "@/lib/auth/actions";
+import { openBillingPortal } from "@/lib/billing/actions";
 import { formatCents } from "@/lib/pricing/engine";
 import { CLEANING_REQUESTS } from "@/lib/quote/validate";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -49,7 +50,10 @@ function Empty({ children }: { children: React.ReactNode }) {
   return <p className="text-sm text-muted">{children}</p>;
 }
 
-export default async function DashboardPage() {
+const PAYMENT_STATUS: Record<string, string> = { succeeded: "Paid", failed: "Failed", refunded: "Refunded", partially_refunded: "Partly refunded" };
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ checkout?: string; billing?: string }> }) {
+  const { checkout, billing } = await searchParams;
   const session = await getCurrentUser();
   if (!session) redirect("/login");
   const { supabase, user } = session;
@@ -57,14 +61,15 @@ export default async function DashboardPage() {
   const today = nowIso.slice(0, 10);
 
   // All reads go through RLS as this user.
-  const [profileRes, quotesRes, propertiesRes, subsRes, entRes, upcomingRes, pastRes] = await Promise.all([
-    supabase.from("profiles").select("role,first_name,last_name,phone,email,marketing_email_opt_in,marketing_sms_opt_in").eq("id", user.id).maybeSingle(),
+  const [profileRes, quotesRes, propertiesRes, subsRes, entRes, upcomingRes, pastRes, paymentsRes] = await Promise.all([
+    supabase.from("profiles").select("role,first_name,last_name,phone,email,marketing_email_opt_in,marketing_sms_opt_in,stripe_customer_id").eq("id", user.id).maybeSingle(),
     supabase.from("quote_requests").select("id,created_at,address_line1,city,panel_count,cleaning_request,status,approved_price_cents").order("created_at", { ascending: false }).limit(20),
     supabase.from("properties").select("id,address_line1,address_line2,city,postal_code,panel_count,stories,technician_instructions").order("created_at"),
     supabase.from("subscriptions").select("id,status,current_period_end,cancel_at_period_end,plans(name),plan_prices(amount_cents,billing_interval)").order("created_at", { ascending: false }),
     supabase.from("service_entitlements").select("status,valid_until"),
     supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").gte("scheduled_start", nowIso).in("status", ["requested", "confirmed", "weather_hold", "rescheduled"]).order("scheduled_start").limit(5),
     supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").lt("scheduled_start", nowIso).order("scheduled_start", { ascending: false }).limit(10),
+    supabase.from("payments").select("id,created_at,amount_cents,refunded_cents,status,description").order("created_at", { ascending: false }).limit(10),
   ]);
 
   const profile = (profileRes.data ?? {}) as Row;
@@ -74,6 +79,8 @@ export default async function DashboardPage() {
   const entitlements = (entRes.data ?? []) as Row[];
   const upcoming = (upcomingRes.data ?? []) as Row[];
   const past = (pastRes.data ?? []) as Row[];
+  const payments = (paymentsRes.data ?? []) as Row[];
+  const hasBilling = Boolean(profile.stripe_customer_id);
 
   const available = entitlements.filter((e) => e.status === "available" && e.valid_until >= today).length;
   const scheduled = entitlements.filter((e) => e.status === "scheduled").length;
@@ -96,8 +103,19 @@ export default async function DashboardPage() {
         </div>
 
         {isStaff && (
-          <div className="mb-6 rounded-xl border border-gold bg-gold-soft/50 p-4 text-sm text-navy">
-            You&apos;re signed in as the business <strong>{profile.role}</strong>. The owner dashboard arrives in Phase 5; for now this page shows your customer view.
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold bg-gold-soft/50 p-4 text-sm text-navy">
+            <span>You&apos;re signed in as the business <strong>{profile.role}</strong>.</span>
+            <Link href="/admin" className="rounded-full bg-navy px-4 py-2 font-semibold text-white hover:bg-navy-900">Owner tools</Link>
+          </div>
+        )}
+        {checkout === "success" && (
+          <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+            Thanks! Stripe is confirming your payment. Your booking and receipt appear here once it&apos;s confirmed, usually within a few seconds. Refresh if you don&apos;t see it yet.
+          </div>
+        )}
+        {billing && (
+          <div role="alert" className="mb-6 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+            {billing === "none" ? "You don't have any billing history yet." : "Billing management isn't available right now. Please try again shortly."}
           </div>
         )}
 
@@ -132,9 +150,12 @@ export default async function DashboardPage() {
                           <p className="font-semibold text-navy">{CLEANING_REQUESTS[q.cleaning_request as keyof typeof CLEANING_REQUESTS] ?? "Cleaning"} · {q.panel_count} panels</p>
                           <p className="text-sm text-muted">{q.address_line1}, {q.city} · {dateFmt.format(new Date(q.created_at))} · Ref {String(q.id).slice(0, 8).toUpperCase()}</p>
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex flex-wrap items-center gap-3">
                           {q.approved_price_cents != null && <span className="font-display font-bold text-navy">{formatCents(q.approved_price_cents)}</span>}
                           <span className={`rounded-full px-3 py-1 text-xs font-semibold ${st.tone}`}>{st.label}</span>
+                          {q.status === "quoted" && q.approved_price_cents != null && (
+                            <Link href={`/checkout/${q.id}`} className="rounded-full bg-gold px-4 py-1.5 text-xs font-semibold text-navy hover:brightness-95">Book now</Link>
+                          )}
                         </div>
                       </li>
                     );
@@ -189,6 +210,9 @@ export default async function DashboardPage() {
                     <p className="text-muted">{activeSub.cancel_at_period_end ? "Ends" : "Renews"} {dateFmt.format(new Date(activeSub.current_period_end))}</p>
                   )}
                   {activeSub.status === "past_due" && <p className="font-semibold text-red-700">Payment needed: please update your card.</p>}
+                  <form action={openBillingPortal} className="pt-2">
+                    <button type="submit" className="w-full rounded-full border border-navy px-4 py-2 text-sm font-semibold text-navy hover:bg-paper">Change plan or cancel</button>
+                  </form>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -228,7 +252,30 @@ export default async function DashboardPage() {
             </Card>
 
             <Card title="Billing">
-              <Empty>Payment methods and receipts will be managed securely through Stripe once online payments launch.</Empty>
+              {payments.length ? (
+                <ul className="divide-y divide-line text-sm">
+                  {payments.map((pm) => (
+                    <li key={pm.id} className="flex items-center justify-between gap-2 py-2 first:pt-0">
+                      <span>
+                        <span className="block font-semibold text-navy">{formatCents(pm.amount_cents)}</span>
+                        <span className="text-xs text-muted">{pm.description ?? "Payment"} · {dateFmt.format(new Date(pm.created_at))}</span>
+                      </span>
+                      <span className={`text-xs font-semibold ${pm.status === "failed" ? "text-red-700" : "text-muted"}`}>
+                        {PAYMENT_STATUS[pm.status] ?? pm.status}
+                        {pm.refunded_cents > 0 && pm.status !== "refunded" ? ` (${formatCents(pm.refunded_cents)} refunded)` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Empty>No payments yet.</Empty>
+              )}
+              {hasBilling && (
+                <form action={openBillingPortal} className="mt-4">
+                  <button type="submit" className="w-full rounded-full bg-navy px-4 py-2.5 text-sm font-semibold text-white hover:bg-navy-900">Manage billing &amp; receipts</button>
+                </form>
+              )}
+              <p className="mt-3 text-xs text-muted">Payments are processed by Stripe. We never store your card number.</p>
             </Card>
           </div>
         </div>

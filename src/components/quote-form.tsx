@@ -137,6 +137,16 @@ function QuoteResult({ state }: { state: Extract<QuoteFormState, { kind: "submit
       {state.priceLabel && <p className="mt-4 font-display text-4xl font-extrabold text-navy">{state.priceLabel}</p>}
       <p className="mt-4 max-w-xl text-muted">{c.body}</p>
       <p className="mt-6 text-sm">Reference: <strong className="font-mono">{state.reference}</strong></p>
+      <div className="mt-6 border-t border-line pt-5">
+        <p className="text-sm text-muted">
+          {state.status === "priced"
+            ? "Ready to book? Sign in with the same email address to pay securely and track your appointment."
+            : "Sign in with the same email address to follow your request and book as soon as your price is ready."}
+        </p>
+        <Link href="/login" className="mt-3 inline-block rounded-full bg-navy px-6 py-2.5 text-sm font-semibold text-white hover:bg-navy-900">
+          {state.status === "priced" ? "Sign in to book" : "Create your account"}
+        </Link>
+      </div>
     </div>
   );
 }
