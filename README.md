@@ -64,8 +64,9 @@ update public.profiles set role = 'owner' where email = 'you@yourdomain.com';
    ```bash
    brew install stripe/stripe-cli/stripe   # or download from github.com/stripe/stripe-cli/releases
    stripe login
-   stripe listen --forward-to localhost:3000/api/stripe/webhook
+   stripe listen --events checkout.session.completed,checkout.session.async_payment_succeeded,customer.subscription.created,customer.subscription.updated,customer.subscription.deleted,invoice.paid,invoice.payment_failed,charge.refunded --forward-to localhost:3000/api/stripe/webhook
    ```
+   (Newer Stripe CLI versions require the `--events` list. These are exactly the events the app handles. Subscribe the same events when you add the production webhook endpoint in the Stripe dashboard.)
    Copy the `whsec_…` value it prints into `.env.local` as `STRIPE_WEBHOOK_SECRET=`, restart `npm run dev`, and leave `stripe listen` running in its own Terminal tab while testing.
 
 ### Owner tools (`/admin`, owner or admin role only)
