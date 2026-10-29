@@ -89,7 +89,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
     supabase.from("subscriptions").select("id,status,current_period_end,cancel_at_period_end,plans(name),plan_prices(amount_cents,billing_interval)").eq("customer_id", user.id).order("created_at", { ascending: false }),
     supabase.from("service_entitlements").select("status,valid_until").eq("customer_id", user.id),
     supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").eq("customer_id", user.id).gte("scheduled_start", nowIso).in("status", ["requested", "confirmed", "weather_hold", "rescheduled"]).order("scheduled_start").limit(5),
-    supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").eq("customer_id", user.id).lt("scheduled_start", nowIso).order("scheduled_start", { ascending: false }).limit(10),
+    supabase.from("bookings").select("id,scheduled_start,status,properties(address_line1,city)").eq("customer_id", user.id).or(`scheduled_start.lt.${nowIso},status.in.(completed,no_access)`).order("scheduled_start", { ascending: false }).limit(10),
     supabase.from("payments").select("id,created_at,amount_cents,refunded_cents,status,description").eq("customer_id", user.id).order("created_at", { ascending: false }).limit(10),
   ]);
 
@@ -108,6 +108,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
   const completed = entitlements.filter((e) => e.status === "completed").length;
   const activeSub = subscriptions.find((s) => ["active", "trialing", "past_due"].includes(s.status));
   const isStaff = profile.role === "owner" || profile.role === "admin";
+  const { data: techRow } = adminForSettings ? await adminForSettings.from("technicians").select("is_active").eq("id", user.id).maybeSingle() : { data: null };
+  const isTechnician = Boolean((techRow as Row | null)?.is_active);
   const greetingName = profile.first_name || user.email?.split("@")[0] || "there";
 
   return (
@@ -127,6 +129,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
           <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gold bg-gold-soft/50 p-4 text-sm text-navy">
             <span>You&apos;re signed in as the business <strong>{profile.role}</strong>.</span>
             <Link href="/admin" className="rounded-full bg-navy px-4 py-2 font-semibold text-white hover:bg-navy-900">Owner tools</Link>
+          </div>
+        )}
+        {isTechnician && (
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-white p-4 text-sm text-navy">
+            <span>You&apos;re on the cleaning team.</span>
+            <Link href="/tech" className="rounded-full bg-gold px-4 py-2 font-semibold text-navy hover:brightness-95">Technician jobs</Link>
           </div>
         )}
         {scheduleMsg && (
@@ -214,7 +222,12 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         <p className="font-semibold text-navy">{dateFmt.format(new Date(b.scheduled_start))}</p>
                         <p className="text-sm text-muted">{b.properties?.address_line1}, {b.properties?.city}</p>
                       </div>
-                      <span className="text-sm text-muted">{BOOKING_STATUS[b.status] ?? b.status}</span>
+                      <span className="flex items-center gap-3">
+                        <span className="text-sm text-muted">{BOOKING_STATUS[b.status] ?? b.status}</span>
+                        {b.status === "completed" && (
+                          <Link href={`/dashboard/reports/${b.id}`} className="rounded-full border border-navy px-3 py-1 text-xs font-semibold text-navy hover:bg-paper">Photos &amp; report</Link>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>

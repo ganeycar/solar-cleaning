@@ -19,6 +19,8 @@ export interface SiteSettings {
   /** Only non-null when the owner has entered AND marked the info verified. */
   licenseInfo: string | null;
   insuranceInfo: string | null;
+  /** Google Business Profile, Yelp, social links (for search engines). */
+  profileLinks: string[];
 }
 
 export interface PlanPrice {
@@ -57,6 +59,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   colors: { navy: "#0b1b33", charcoal: "#1f2933", gold: "#e8b04a" },
   licenseInfo: null,
   insuranceInfo: null,
+  profileLinks: [],
 };
 
 export const DEFAULT_PLANS: Plan[] = [
@@ -74,7 +77,7 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
   if (!db) return DEFAULT_SETTINGS;
   const { data, error } = await db
     .from("business_settings")
-    .select("business_name,tagline,phone,email,headquarters_city,headquarters_state,logo_url,brand_colors,license_info,license_verified,insurance_info,insurance_verified")
+    .select("business_name,tagline,phone,email,headquarters_city,headquarters_state,logo_url,brand_colors,license_info,license_verified,insurance_info,insurance_verified,profile_links")
     .eq("id", 1)
     .maybeSingle();
   if (error || !data) return DEFAULT_SETTINGS;
@@ -94,6 +97,7 @@ export const getSiteSettings = cache(async (): Promise<SiteSettings> => {
     colors,
     licenseInfo: data.license_verified && data.license_info ? data.license_info : null,
     insuranceInfo: data.insurance_verified && data.insurance_info ? data.insurance_info : null,
+    profileLinks: Array.isArray(data.profile_links) ? data.profile_links.filter((l: unknown) => typeof l === "string" && l.startsWith("https://")) : [],
   };
 });
 

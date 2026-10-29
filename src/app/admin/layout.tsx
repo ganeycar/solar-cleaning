@@ -7,10 +7,13 @@ export const metadata: Metadata = { title: "Owner tools", robots: { index: false
 export const dynamic = "force-dynamic";
 
 const TABS = [
+  { href: "/admin", label: "Overview" },
   { href: "/admin/quotes", label: "Quotes" },
   { href: "/admin/schedule", label: "Schedule" },
+  { href: "/admin/customers", label: "Customers" },
   { href: "/admin/pricing", label: "Plans & prices" },
   { href: "/admin/settings", label: "Quote pricing & areas" },
+  { href: "/admin/business", label: "Business" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

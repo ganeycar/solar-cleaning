@@ -1,5 +1,6 @@
 "use client";
 
+import { PhotoInput } from "./photo-input";
 import Link from "next/link";
 import { useActionState } from "react";
 import { submitQuote, type QuoteFormState } from "@/lib/quote/actions";
@@ -74,7 +75,7 @@ export function QuoteForm({ defaultCleaning, defaultCity }: { defaultCleaning?: 
         </div>
         <div className="sm:col-span-2">
           <Field label="Photos (optional, up to 5)" name="photos" hint="A photo of the panels from the ground helps us quote accurately. JPEG, PNG, WebP or HEIC, 8 MB each.">
-            <input id="photos" name="photos" type="file" accept="image/jpeg,image/png,image/webp,image/heic" multiple className="field" />
+            <PhotoInput id="photos" name="photos" accept="image/jpeg,image/png,image/webp,image/heic" multiple className="field" />
           </Field>
         </div>
       </fieldset>

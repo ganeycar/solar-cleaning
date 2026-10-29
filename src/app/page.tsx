@@ -26,6 +26,7 @@ export default async function HomePage() {
     ...(settings.email ? { email: settings.email } : {}),
     address: { "@type": "PostalAddress", addressLocality: settings.headquartersCity, addressRegion: settings.headquartersState, addressCountry: "US" },
     areaServed: CITIES.map((c) => ({ "@type": "City", name: `${c.name}, CA` })),
+    ...(settings.profileLinks.length ? { sameAs: settings.profileLinks } : {}),
     knowsAbout: ["Solar panel cleaning", "Residential solar maintenance", "Commercial solar panel cleaning", "Water-fed pole cleaning"],
     ...(scheduling
       ? {

@@ -2,7 +2,7 @@
 
 Website, quoting, memberships, scheduling, and dashboards for a solar panel cleaning business based in Vacaville, CA.
 
-**Status: Phase 4 of 6.** Public site, quotes, customer accounts, Stripe checkout and memberships (test mode), owner pricing tools, and online booking with cleaning tracking are built. Nothing is deployed, and live payments are blocked until you approve them.
+**Status: Phase 5 of 6.** Public site, quotes, customer accounts, Stripe checkout and memberships (test mode), owner pricing tools, online booking with cleaning tracking, the owner dashboard, and the technician phone app are built. Nothing is deployed, and live payments are blocked until you approve them.
 
 ## Tech
 
@@ -102,6 +102,31 @@ update public.profiles set role = 'owner' where email = 'you@yourdomain.com';
 - One-time purchases include one cleaning valid for 12 months.
 - Owner tools (**/admin/schedule**): upcoming appointments with customer notes, **Completed**, **Weather: cancel & return cleaning**, and **No access** (cleaning counts as used); a private calendar subscription link for Apple or Google Calendar.
 
+## Owner dashboard and technician app (Phase 5)
+
+### One-time setup
+
+1. Run `supabase/migrations/20261029000007_operations.sql` in the Supabase SQL Editor (once).
+2. Go to **/admin/business** and fill in your details. Enter your **cost per cleaning** (private) to see profit estimates.
+
+### Owner tools (/admin)
+
+- **Overview:** active members, monthly recurring revenue, past-due and ending memberships, new and canceled members, failed payments, revenue by plan and by city, and estimated profit per plan (last 30, 90, or 365 days).
+- **Customers:** search by name, email, or phone. Each customer page shows cleanings (add a goodwill cleaning), manual booking, appointments with service reports, memberships with the recorded auto-renewal consent, payments, contact details, properties (edit), and quotes.
+- **Business:** name, phone, email, colors, logo, license and insurance (shown on the site only when you tick "confirmed"), Google/Yelp/Facebook links, and your team. Add a helper by email after they've signed in once; deactivate them anytime (not while they have upcoming jobs).
+
+### Technician app (/tech, made for phones)
+
+- Today's and the next 7 days' jobs, each with directions, tap-to-call, the property details, customer notes, and what equipment to bring.
+- A required safety checklist before **Start job**.
+- Before, after, and issue photos taken from the phone's camera (resized on the phone so uploads stay small); service notes; existing-damage and unsafe-condition notes.
+- **Complete job** needs at least one before and one after photo. **Stop for safety** returns the customer's cleaning; **No access** uses it.
+- Technicians see only their own jobs: never payments, prices, or other customers.
+
+### Customers
+
+- Completed cleanings in **Service history** have a **Photos & report** page with before-and-after photos, notes, and anything the technician noticed. It prints or saves as a PDF.
+
 ## Getting found on Google and AI search
 
 Google's guidance (May 2026) is that optimizing for AI search *is* regular SEO: helpful first-hand content, clear structure, real images, accurate business information. Separate AI files (like `llms.txt`) and AI-only markup aren't needed.
@@ -136,7 +161,7 @@ There are **no prices in the code**. Every plan starts with a *draft* price slot
 - A published price can't be edited. Publishing a new price creates a new version, so existing members keep the price they agreed to.
 - The quote engine's settings live in the `pricing_rules` table. Until a version is published, quotes are saved and estimated internally but customers never see a number.
 
-The owner dashboard (Phase 5) will provide screens for all of this. Until then, prices can be set in the Supabase table editor, though there's no need to yet.
+Prices are set and published from **/admin/pricing** (plans) and **/admin/settings** (quote pricing and areas).
 
 ## Replacing placeholders
 
@@ -167,7 +192,7 @@ The owner dashboard (Phase 5) will provide screens for all of this. Until then, 
 | 2 | Customer accounts (Supabase Auth) and customer dashboard | **Built** |
 | 3 | Stripe test-mode checkout, subscriptions, billing portal, pricing controls | **Built** |
 | 4 | Booking, availability, entitlements, rescheduling | **Built** |
-| 5 | Owner and technician dashboards | Not started |
+| 5 | Owner and technician dashboards | **Built** |
 | 6 | Email, reporting, lead follow-up, SEO, launch prep | Not started |
 
 ### Phase 1 verification
@@ -197,6 +222,12 @@ Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 ro
 ### Decisions made
 
 - Membership cleanings are spread through the year for monthly billing (owner's choice, 28 Oct 2026). Note: a monthly member's first cleaning unlocks with the first payment, so someone could pay one month, use one cleaning, and cancel. If that becomes a problem, options include a minimum term (disclosed at checkout) or unlocking the first cleaning after the second payment.
+
+### Phase 5 verification
+
+- **Unit tests (50 total):** membership revenue math (monthly and yearly values, MRR, ARR, revenue by plan and city, refunds, windows), profit per plan, and the business-settings form (colors, links, verified flags only when filled).
+- **Database (3 new groups, 27 total):** technicians can start and complete only their own jobs; completion requires before and after photos and uses the cleaning; technicians see only their own jobs, addresses, and photos; customers see photos of only their own jobs; inactive technicians can't be assigned jobs; your cost figures are never public.
+- Not yet verified on a real machine: every Phase 5 page, photo upload from a phone camera, and the printed report.
 
 ### Phase 4 verification
 

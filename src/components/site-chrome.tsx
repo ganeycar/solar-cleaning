@@ -13,7 +13,7 @@ const NAV = [
 
 export function SiteHeader({ settings }: { settings: SiteSettings }) {
   return (
-    <header className="sticky top-0 z-40 border-b border-white/10 bg-navy/95 text-white backdrop-blur">
+    <header className="sticky top-0 z-40 print:hidden border-b border-white/10 bg-navy/95 text-white backdrop-blur">
       <Container className="flex h-16 items-center justify-between gap-4">
         <Link href="/" className="flex items-center gap-2 font-display text-lg font-extrabold tracking-tight">
           {settings.logoUrl ? (
@@ -50,7 +50,7 @@ export function SiteHeader({ settings }: { settings: SiteSettings }) {
 export function SiteFooter({ settings }: { settings: SiteSettings }) {
   const year = new Date().getFullYear();
   return (
-    <footer className="bg-charcoal text-white/75">
+    <footer className="print:hidden bg-charcoal text-white/75">
       <Container className="grid gap-10 py-14 sm:grid-cols-2 lg:grid-cols-4">
         <div className="lg:col-span-2">
           <div className="flex items-center gap-2 font-display text-lg font-extrabold text-white">

@@ -413,4 +413,64 @@ do $$ begin
 end $$;
 reset role;
 
+\echo 'T25 technicians start and complete only their own jobs; completion needs before and after photos'
+insert into auth.users (id, email) values ('00000000-0000-0000-0000-00000000000f', 'tech2@test.local');
+update public.profiles set role = 'technician' where id = '00000000-0000-0000-0000-00000000000f';
+insert into public.technicians (id, display_name) values ('00000000-0000-0000-0000-00000000000f', 'Tech Two');
+insert into public.service_entitlements (id, customer_id, source, status, valid_from, valid_until, source_ref) values
+  ('30000000-0000-0000-0000-0000000000e4', '00000000-0000-0000-0000-00000000000b', 'goodwill', 'available', '2027-01-01', '2027-12-31', 'test:e4');
+set role service_role;
+do $$ declare b uuid; begin
+  b := public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e4', '10000000-0000-0000-0000-0000000000a1',
+    '00000000-0000-0000-0000-00000000000d', '2027-07-01 16:00+00', '2027-07-01 17:30+00', 30);
+  perform set_config('test.b4', b::text, false);
+  begin perform public.tech_start_job('00000000-0000-0000-0000-00000000000f', b, '{}'); raise exception 'FAIL: other technician started the job';
+  exception when raise_exception then if sqlerrm <> 'JOB_NOT_AVAILABLE' then raise; end if; end;
+  perform public.tech_start_job('00000000-0000-0000-0000-00000000000d', b, '{"weather": true}');
+  assert (select status from public.bookings where id = b) = 'in_progress', 'job in progress';
+  assert (select checklist_completed_at is not null from public.job_reports where booking_id = b), 'checklist recorded';
+  begin perform public.tech_complete_job('00000000-0000-0000-0000-00000000000d', b); raise exception 'FAIL: completed without photos';
+  exception when raise_exception then if sqlerrm <> 'PHOTOS_REQUIRED' then raise; end if; end;
+  insert into public.job_photos (booking_id, kind, storage_path, uploaded_by) values
+    (b, 'before', 'x/before.jpg', '00000000-0000-0000-0000-00000000000d'), (b, 'after', 'x/after.jpg', '00000000-0000-0000-0000-00000000000d');
+  perform public.tech_complete_job('00000000-0000-0000-0000-00000000000d', b);
+  assert (select status from public.bookings where id = b) = 'completed', 'job completed';
+  assert (select status from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e4') = 'completed', 'cleaning used';
+end $$;
+reset role;
+
+\echo 'T26 a technician sees only their own jobs and photos; customers see photos of their own jobs'
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000f';
+do $$ begin
+  assert (select count(*) from public.bookings) = 0, 'tech2 sees no jobs';
+  assert (select count(*) from public.job_photos) = 0, 'tech2 sees no photos';
+  assert (select count(*) from public.properties) = 0, 'tech2 sees no addresses';
+end $$;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  assert (select count(*) from public.job_photos where booking_id = current_setting('test.b4')::uuid) = 2, 'customer sees own job photos';
+end $$;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000c';
+do $$ begin
+  assert (select count(*) from public.job_photos) = 0, 'other customer sees none';
+end $$;
+reset role;
+
+\echo 'T27 inactive technicians cannot be given jobs; economics are private'
+update public.technicians set is_active = false where id = '00000000-0000-0000-0000-00000000000f';
+do $$ begin
+  begin
+    update public.bookings set technician_id = '00000000-0000-0000-0000-00000000000f' where id = current_setting('test.b4')::uuid;
+    raise exception 'FAIL: assigned an inactive technician';
+  exception when raise_exception then if sqlerrm <> 'Technician is not active.' then raise; end if; end;
+end $$;
+set role anon;
+do $$ begin
+  perform profile_links from public.business_settings;
+  begin perform economics from public.business_settings; raise exception 'FAIL: anon read economics';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 \echo 'ALL DATABASE TESTS PASSED'
