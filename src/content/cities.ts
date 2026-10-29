@@ -13,6 +13,8 @@ export interface CityContent {
   localConditions: { title: string; body: string }[];
   schedulingNote: string;
   neighborhoodsNote: string;
+  /** Local questions shown on the city page (and in its FAQ structured data). */
+  faqs: { q: string; a: string }[];
 }
 
 export const CITIES: CityContent[] = [
@@ -30,6 +32,10 @@ export const CITIES: CityContent[] = [
     ],
     schedulingNote: "As our launch city, Vacaville appointments are available first. Members here get first choice of dry-season dates.",
     neighborhoodsNote: "If several neighbors on your street want cleanings, ask about a neighborhood group booking — one trip, scheduled together.",
+    faqs: [
+      { q: "How often should Vacaville homes clean their solar panels?", a: "With Vacaville's long, dry summers and spring pollen, many homes benefit from two cleanings a year: one in late spring and one late in the dry season. Homes near I-80 or open hillsides may collect dust faster." },
+      { q: "Do I need to be home for a solar panel cleaning in Vacaville?", a: "Usually not, as long as we can reach your panels and an outdoor water spigot. Leave gate or pet notes when you book." },
+    ],
   },
   {
     slug: "fairfield",
@@ -45,6 +51,10 @@ export const CITIES: CityContent[] = [
     ],
     schedulingNote: "Fairfield is on our expansion list. Submit a quote and we'll contact you as soon as appointments open.",
     neighborhoodsNote: "Group bookings with neighbors can help us open your area sooner.",
+    faqs: [
+      { q: "Why do panels in Fairfield get dirty so quickly?", a: "Afternoon winds through Cordelia and Suisun Valley carry dust onto roofs, and homes near open land and wetlands often see more bird droppings, which rain doesn't wash away." },
+      { q: "How do I get on the Fairfield schedule?", a: "Request a quote online. We're opening Fairfield as our schedule allows and will contact you as soon as we can book you." },
+    ],
   },
   {
     slug: "suisun-city",
@@ -60,6 +70,10 @@ export const CITIES: CityContent[] = [
     ],
     schedulingNote: "Suisun City is on our expansion list alongside Fairfield. Request a quote to be first in line.",
     neighborhoodsNote: "Townhome communities can ask about scheduling several homes in one visit.",
+    faqs: [
+      { q: "Does being near Suisun Marsh affect my solar panels?", a: "It can. Moist marsh air helps dust and pollen stick to the glass as a film, and waterfowl nearby can mean more droppings. Both are harder for rain to rinse off than loose dust." },
+      { q: "Can townhomes in Suisun City book together?", a: "Yes. Ask about a group booking so we can clean several homes in one visit." },
+    ],
   },
   {
     slug: "dixon",
@@ -75,6 +89,10 @@ export const CITIES: CityContent[] = [
     ],
     schedulingNote: "Dixon is on our expansion list. We'll open appointments as our route capacity grows.",
     neighborhoodsNote: "Ag and ranch properties with larger systems can request a site visit through our commercial form.",
+    faqs: [
+      { q: "How often should homes near Dixon farmland clean their panels?", a: "Harvest and field work can coat panels quickly, so homes near active fields may benefit from a cleaning soon after harvest season in addition to a regular spring cleaning." },
+      { q: "Do you clean ground-mounted solar arrays in Dixon?", a: "Often, yes. Ground mounts are usually easier to reach safely. Tell us about yours in the quote form and we'll review the details." },
+    ],
   },
   {
     slug: "winters",
@@ -90,6 +108,10 @@ export const CITIES: CityContent[] = [
     ],
     schedulingNote: "Winters is on our expansion list. Travel to Winters may include a travel fee, shown in your quote once pricing is published.",
     neighborhoodsNote: "Neighbors booking together can reduce travel and help us schedule your area sooner.",
+    faqs: [
+      { q: "Do orchards near Winters affect solar panels?", a: "Orchard work, harvest dust, and pollen from nearby trees can leave a noticeable layer, and sap from overhanging trees can stick to the glass." },
+      { q: "Is there a travel fee for Winters?", a: "There may be. Any travel fee is shown in your quote once our pricing is published." },
+    ],
   },
   {
     slug: "davis",
@@ -105,6 +127,10 @@ export const CITIES: CityContent[] = [
     ],
     schedulingNote: "Davis is on our expansion list. Request a quote and we'll reach out as appointments open.",
     neighborhoodsNote: "Co-ops, HOAs, and neighbors can request a group booking.",
+    faqs: [
+      { q: "Do street trees in Davis affect solar panel output?", a: "Shade is the bigger effect, but trees also drop leaves, pollen, and sap that can build up on arrays beneath them. Regular cleaning helps with buildup; it doesn't change shading." },
+      { q: "Can you clean solar panels on tile roofs in Davis?", a: "Sometimes, from the ground. Tile roofs can be fragile, so we never walk on them without a safety review. Choose your roof type in the quote form and we'll review access before giving a price." },
+    ],
   },
 ];
 

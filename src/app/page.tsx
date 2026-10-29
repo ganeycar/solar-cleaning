@@ -3,21 +3,58 @@ import { PlanCards } from "@/components/plan-cards";
 import { ButtonLink, CheckItem, Container, Eyebrow, PanelGrid, PhotoSlot, Section } from "@/components/ui";
 import { CITIES } from "@/content/cities";
 import { getPlans, getSiteSettings, siteUrl } from "@/lib/site";
+import { loadSchedulingSettings } from "@/lib/scheduling/data";
+import { getPublicClient } from "@/lib/supabase/admin";
 
 export default async function HomePage() {
-  const [settings, plans] = await Promise.all([getSiteSettings(), getPlans()]);
+  const db = getPublicClient();
+  const [settings, plans, scheduling] = await Promise.all([getSiteSettings(), getPlans(), db ? loadSchedulingSettings(db) : Promise.resolve(null)]);
+  const base = siteUrl();
+  const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
-  // Structured data includes only information that is actually configured.
+  // Structured data includes only information that is actually configured:
+  // no street address (service-area business), no prices until published.
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "HomeAndConstructionBusiness",
+    "@id": `${base}/#business`,
     name: settings.businessName,
     description: settings.tagline,
-    url: siteUrl(),
+    url: `${base}/`,
+    ...(settings.logoUrl ? { logo: settings.logoUrl } : {}),
     ...(settings.phone ? { telephone: settings.phone } : {}),
     ...(settings.email ? { email: settings.email } : {}),
     address: { "@type": "PostalAddress", addressLocality: settings.headquartersCity, addressRegion: settings.headquartersState, addressCountry: "US" },
     areaServed: CITIES.map((c) => ({ "@type": "City", name: `${c.name}, CA` })),
+    knowsAbout: ["Solar panel cleaning", "Residential solar maintenance", "Commercial solar panel cleaning", "Water-fed pole cleaning"],
+    ...(scheduling
+      ? {
+          openingHoursSpecification: scheduling.weeklyHours.flatMap((h, d) =>
+            h ? [{ "@type": "OpeningHoursSpecification", dayOfWeek: `https://schema.org/${DAY_NAMES[d]}`, opens: h.start, closes: h.end }] : [],
+          ),
+        }
+      : {}),
+    hasOfferCatalog: {
+      "@type": "OfferCatalog",
+      name: "Solar panel cleaning services",
+      itemListElement: plans.map((p) => ({
+        "@type": "Offer",
+        itemOffered: { "@type": "Service", name: p.name, description: p.summary },
+        // Only published prices. One-time cleanings are "starting at"; memberships are per month or year.
+        ...(p.prices[0]
+          ? p.kind === "one_time"
+            ? { priceSpecification: { "@type": "PriceSpecification", minPrice: (p.prices[0].amountCents / 100).toFixed(2), priceCurrency: "USD" } }
+            : {
+                priceSpecification: p.prices.map((pr) => ({
+                  "@type": "UnitPriceSpecification",
+                  price: (pr.amountCents / 100).toFixed(2),
+                  priceCurrency: "USD",
+                  unitText: pr.interval === "year" ? "year" : "month",
+                })),
+              }
+          : {}),
+      })),
+    },
   };
 
   return (

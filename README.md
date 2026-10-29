@@ -102,6 +102,20 @@ update public.profiles set role = 'owner' where email = 'you@yourdomain.com';
 - One-time purchases include one cleaning valid for 12 months.
 - Owner tools (**/admin/schedule**): upcoming appointments with customer notes, **Completed**, **Weather: cancel & return cleaning**, and **No access** (cleaning counts as used); a private calendar subscription link for Apple or Google Calendar.
 
+## Getting found on Google and AI search
+
+Google's guidance (May 2026) is that optimizing for AI search *is* regular SEO: helpful first-hand content, clear structure, real images, accurate business information. Separate AI files (like `llms.txt`) and AI-only markup aren't needed.
+
+**Built into the site:** server-rendered pages with clear headings and unique titles; six city pages with genuinely different local content and local FAQs; conversational FAQ answers; structured data for the business (service area, services, hours from your schedule, published prices only), each city's service, FAQs, and breadcrumbs; a sitemap; a branded share image. Search engines are blocked until `NEXT_PUBLIC_SITE_INDEXABLE=true` at launch.
+
+**Launch checklist (owner):**
+1. **Google Business Profile:** create it as a service-area business (hide the home address), list the same cities, use the exact business name and phone shown on the site, add many real photos, and keep hours current.
+2. **Reviews:** ask every happy customer, reply to every review (good and bad). Reviews are a key source for AI recommendations. Phase 6 adds automatic review-request emails.
+3. **Consistency:** the same name, phone, website, and service area on Yelp, Nextdoor, Bing Places, Apple Business Connect, Facebook, and the Vacaville Chamber of Commerce.
+4. **Mentions:** local news, community groups, installer partners, and neighborhood associations linking to or naming the business.
+5. **Real content:** add your own photos, and occasional short posts answering questions customers actually ask you.
+6. **Check it:** after launch, verify the site in Google Search Console and submit `/sitemap.xml`. Every few weeks, ask ChatGPT, Gemini, and Perplexity "who cleans solar panels in Vacaville?" and note which sources they cite.
+
 ## Tests
 
 ```bash

@@ -52,4 +52,28 @@ export const FAQ: { q: string; a: string }[] = [
     q: "Which areas do you serve?",
     a: "We're based in Vacaville and opening Fairfield, Suisun City, Dixon, Winters, and Davis as our schedule allows. If you're nearby but outside these cities, request a quote anyway and we'll let you know.",
   },
+  {
+    q: "How often should I clean my solar panels in Solano County?",
+    a: "It depends on what's around your home. Many homes here do well with a cleaning once or twice a year: once after spring pollen and again late in the dry season, before fall. Homes near farmland, freeways, or lots of birds may need it more often. Your monitoring app is a good guide: if output drops on clear days compared with the same time last year, it may be time.",
+  },
+  {
+    q: "How much does solar panel cleaning cost?",
+    a: "It depends on how many panels you have, how many stories your home is, how the panels can be reached, and travel distance. You can get a quote online in about two minutes. Simple ground-reachable jobs can get a price right away, and anything that needs a closer look is reviewed by a person.",
+  },
+  {
+    q: "Can I just hose off my solar panels myself?",
+    a: "Some owners rinse their panels from the ground, which is far safer than climbing on a roof. Avoid pressure washers, abrasive pads, and harsh cleaners, and check your panel manufacturer's cleaning guidance first. Hard tap water can leave mineral spots as it dries, which is one reason we use purified water.",
+  },
+  {
+    q: "Will cleaning affect my solar panel warranty?",
+    a: "Warranty terms vary by manufacturer, and many describe approved cleaning methods. We use soft brushes and purified water and never use pressure washers or harsh chemicals. If you're unsure, check your panel manual or ask your installer.",
+  },
+  {
+    q: "When is the best time of year to clean solar panels in Northern California?",
+    a: "Late spring, after pollen season and before the long sunny summer, is a popular time. Many homes also benefit from a cleaning in late summer or early fall, after months of dust with no rain. After wildfire smoke or ash, a cleaning can remove residue that light rain leaves behind.",
+  },
+  {
+    q: "Do you install bird or critter guards?",
+    a: "No. We focus on cleaning only. If we notice nesting, debris under panels, or visible damage, we'll photograph it and let you know so you can contact your installer.",
+  },
 ];
