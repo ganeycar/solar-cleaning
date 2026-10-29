@@ -160,7 +160,7 @@ Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 ro
 - **Database (5 new test groups, 19 total):** only the owner can publish prices or pricing versions; publishing archives the previous version and keeps its amount; published pricing versions can't be edited; the public can't read internal Stripe ids; paid quotes create exactly one property and only from server code; cleaning credits can't be issued twice.
 - **Unit tests (30 total):** checkout eligibility (unpriced, unpublished, unsynced, over-panel-limit, unreviewed quotes are all blocked), renewal disclosure content and length, live-key refusal, reading Stripe objects across API versions, dollar parsing, the owner pricing form, and the engine's safety floor (unknown roofs and uncertain or roof access are always reviewed, whatever the settings say).
 - **Type check:** all app code was checked against simplified stand-ins for Next.js, Supabase and Stripe, which caught and fixed one real error.
-- Not yet verified: real Stripe calls (checkout, webhooks, portal, publishing prices) and `npm run build` with the Stripe package. These need the owner's machine and Stripe test mode.
+- Confirmed by the owner on a real machine: `npm run build` with the Stripe package, owner tools, publishing prices to Stripe, instant quote pricing, and a one-time test payment confirmed by webhook (payment and cleaning credit recorded).
 
 ### Open decision before Phase 4
 
