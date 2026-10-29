@@ -20,12 +20,12 @@ export default async function OpenGraphImage() {
         <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
             <div style={{ width: 54, height: 54, borderRadius: 999, background: s.colors.gold }} />
-            <div style={{ fontSize: 40, fontWeight: 800 }}>{s.businessName}</div>
+            <div style={{ fontSize: 40, fontWeight: 800 }}>{String(s.businessName)}</div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", maxWidth: 760 }}>
             <div style={{ fontSize: 78, fontWeight: 800, lineHeight: 1.05 }}>Clean panels.</div>
             <div style={{ fontSize: 78, fontWeight: 800, lineHeight: 1.05, color: s.colors.gold }}>Clear sunlight.</div>
-            <div style={{ marginTop: 28, fontSize: 30, opacity: 0.85 }}>Solar panel cleaning &amp; care memberships · {s.headquartersCity}, CA</div>
+            <div style={{ marginTop: 28, fontSize: 30, opacity: 0.85 }}>{`Solar panel cleaning & care memberships · ${s.headquartersCity}, CA`}</div>
           </div>
         </div>
       </div>
