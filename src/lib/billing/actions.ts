@@ -20,7 +20,11 @@ type CustomerResult = { error: "payments-unavailable" | "account" } | { stripe: 
 async function stripeCustomerFor(userId: string, email: string): Promise<CustomerResult> {
   const stripeRes = getStripe();
   const admin = getAdminClient();
-  if (!stripeRes.ok || !admin) return { error: "payments-unavailable" };
+  if (!stripeRes.ok || !admin) {
+    // Customers see a generic message; the owner sees the real reason in the server log.
+    console.error("Checkout unavailable:", stripeRes.ok ? "Supabase service role key is missing" : stripeRes.reason);
+    return { error: "payments-unavailable" };
+  }
   const { data: profile } = await admin.from("profiles").select("id,email,first_name,last_name,phone,stripe_customer_id").eq("id", userId).single();
   if (!profile) return { error: "account" };
   const customerId = await getOrCreateStripeCustomer(stripeRes.stripe, admin, profile, email);
