@@ -310,4 +310,107 @@ do $$ begin
   exception when unique_violation then null; end;
 end $$;
 
+\echo 'T20 customers cannot call booking functions directly'
+insert into public.service_entitlements (id, customer_id, source, status, valid_from, valid_until, source_ref) values
+  ('30000000-0000-0000-0000-0000000000e1', '00000000-0000-0000-0000-00000000000b', 'plan', 'available', '2027-01-01', '2027-12-31', 'test:e1'),
+  ('30000000-0000-0000-0000-0000000000e2', '00000000-0000-0000-0000-00000000000b', 'plan', 'available', '2027-01-01', '2027-12-31', 'test:e2'),
+  ('30000000-0000-0000-0000-0000000000e3', '00000000-0000-0000-0000-00000000000c', 'plan', 'available', '2027-01-01', '2027-12-31', 'test:e3');
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  begin
+    perform public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000a1',
+      '00000000-0000-0000-0000-00000000000d', '2027-04-06 16:00+00', '2027-04-06 17:30+00', 30);
+    raise exception 'FAIL: customer called book_cleaning';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
+\echo 'T21 booking uses exactly one valid cleaning credit and blocks double-booking atomically'
+set role service_role;
+do $$ declare b1 uuid; begin
+  b1 := public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000a1',
+    '00000000-0000-0000-0000-00000000000d', '2027-04-06 16:00+00', '2027-04-06 17:30+00', 30);
+  perform set_config('test.b1', b1::text, false);
+  assert (select status from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e1') = 'scheduled', 'credit scheduled';
+  assert (select booking_id from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e1') = b1, 'credit linked';
+  assert (select status from public.bookings where id = b1) = 'confirmed', 'booking confirmed';
+
+  begin perform public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000a1',
+      '00000000-0000-0000-0000-00000000000d', '2027-05-06 16:00+00', '2027-05-06 17:30+00', 30);
+    raise exception 'FAIL: reused a credit';
+  exception when raise_exception then if sqlerrm <> 'CLEANING_NOT_AVAILABLE' then raise; end if; end;
+
+  begin perform public.book_cleaning('00000000-0000-0000-0000-00000000000c', '30000000-0000-0000-0000-0000000000e2', '10000000-0000-0000-0000-0000000000b1',
+      '00000000-0000-0000-0000-00000000000d', '2027-05-06 16:00+00', '2027-05-06 17:30+00', 30);
+    raise exception 'FAIL: used another customer''s credit';
+  exception when raise_exception then if sqlerrm <> 'CLEANING_NOT_AVAILABLE' then raise; end if; end;
+
+  begin perform public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e2', '10000000-0000-0000-0000-0000000000b1',
+      '00000000-0000-0000-0000-00000000000d', '2027-05-06 16:00+00', '2027-05-06 17:30+00', 30);
+    raise exception 'FAIL: booked at another customer''s property';
+  exception when raise_exception then if sqlerrm <> 'PROPERTY_NOT_FOUND' then raise; end if; end;
+
+  begin perform public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e2', '10000000-0000-0000-0000-0000000000a1',
+      '00000000-0000-0000-0000-00000000000d', '2028-02-01 16:00+00', '2028-02-01 17:30+00', 30);
+    raise exception 'FAIL: booked outside the credit''s valid dates';
+  exception when raise_exception then if sqlerrm <> 'CLEANING_NOT_AVAILABLE' then raise; end if; end;
+
+  begin perform public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e2', '10000000-0000-0000-0000-0000000000a1',
+      '00000000-0000-0000-0000-00000000000d', '2027-04-06 17:45+00', '2027-04-06 18:30+00', 30);
+    raise exception 'FAIL: double-booked inside the travel buffer';
+  exception when exclusion_violation then null; end;
+end $$;
+reset role;
+do $$ begin
+  assert (select status from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e2') = 'available', 'failed booking left the credit untouched';
+end $$;
+
+\echo 'T22 reschedule only by the booking''s customer, within the credit''s dates'
+set role service_role;
+do $$ declare b1 uuid := current_setting('test.b1')::uuid; begin
+  begin perform public.reschedule_booking('00000000-0000-0000-0000-00000000000c', b1, '00000000-0000-0000-0000-00000000000d', '2027-04-08 16:00+00', '2027-04-08 17:30+00');
+    raise exception 'FAIL: someone else rescheduled';
+  exception when raise_exception then if sqlerrm <> 'BOOKING_NOT_CHANGEABLE' then raise; end if; end;
+  begin perform public.reschedule_booking('00000000-0000-0000-0000-00000000000b', b1, '00000000-0000-0000-0000-00000000000d', '2028-04-08 16:00+00', '2028-04-08 17:30+00');
+    raise exception 'FAIL: rescheduled past the credit''s end date';
+  exception when raise_exception then if sqlerrm <> 'OUTSIDE_CLEANING_VALIDITY' then raise; end if; end;
+  perform public.reschedule_booking('00000000-0000-0000-0000-00000000000b', b1, '00000000-0000-0000-0000-00000000000d', '2027-04-08 16:00+00', '2027-04-08 17:30+00');
+  assert (select scheduled_start from public.bookings where id = b1) = '2027-04-08 16:00+00', 'moved';
+end $$;
+reset role;
+
+\echo 'T23 canceling in time returns the cleaning; no-access uses it; completion uses it'
+set role service_role;
+do $$ declare b1 uuid := current_setting('test.b1')::uuid; b2 uuid; b3 uuid; begin
+  perform public.cancel_booking(b1, 'Customer canceled', true, '00000000-0000-0000-0000-00000000000b');
+  assert (select status from public.bookings where id = b1) = 'canceled', 'booking canceled';
+  assert (select status from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e1') = 'available', 'credit returned';
+  assert (select booking_id from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e1') is null, 'credit unlinked';
+  begin perform public.cancel_booking(b1, 'again', true, null); raise exception 'FAIL: canceled twice';
+  exception when raise_exception then null; end;
+
+  b2 := public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e1', '10000000-0000-0000-0000-0000000000a1',
+    '00000000-0000-0000-0000-00000000000d', '2027-06-01 16:00+00', '2027-06-01 17:30+00', 30);
+  perform public.complete_booking(b2);
+  assert (select status from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e1') = 'completed', 'credit used on completion';
+
+  b3 := public.book_cleaning('00000000-0000-0000-0000-00000000000b', '30000000-0000-0000-0000-0000000000e2', '10000000-0000-0000-0000-0000000000a1',
+    '00000000-0000-0000-0000-00000000000d', '2027-06-02 16:00+00', '2027-06-02 17:30+00', 30);
+  perform public.cancel_booking(b3, 'Gate locked', false, null);
+  assert (select status from public.bookings where id = b3) = 'no_access', 'no access recorded';
+  assert (select status from public.service_entitlements where id = '30000000-0000-0000-0000-0000000000e2') = 'completed', 'credit counted as used';
+end $$;
+reset role;
+
+\echo 'T24 public can read scheduling settings but never the calendar token'
+update public.business_settings set calendar_token = 'secret-token' where id = 1;
+set role anon;
+do $$ begin
+  perform scheduling from public.business_settings where id = 1;
+  begin perform calendar_token from public.business_settings; raise exception 'FAIL: anon read calendar token';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 \echo 'ALL DATABASE TESTS PASSED'

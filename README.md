@@ -2,7 +2,7 @@
 
 Website, quoting, memberships, scheduling, and dashboards for a solar panel cleaning business based in Vacaville, CA.
 
-**Status: Phase 3 of 6.** Public site, quote form, pricing engine, database, customer accounts and dashboard, Stripe checkout and memberships (test mode), and owner pricing tools are built. Nothing is deployed, and live payments are blocked until you approve them.
+**Status: Phase 4 of 6.** Public site, quotes, customer accounts, Stripe checkout and memberships (test mode), owner pricing tools, and online booking with cleaning tracking are built. Nothing is deployed, and live payments are blocked until you approve them.
 
 ## Tech
 
@@ -84,6 +84,24 @@ update public.profiles set role = 'owner' where email = 'you@yourdomain.com';
 - Members manage cards, see receipts, switch plans, and cancel online through Stripe's billing portal (configured automatically; cancellation takes effect at the end of the period).
 - Test card: `4242 4242 4242 4242`, any future date, any CVC, any ZIP.
 
+## Booking and scheduling (Phase 4)
+
+### One-time setup
+
+1. Run `supabase/migrations/20261028000006_scheduling.sql` in the Supabase SQL Editor (once).
+2. Go to **/admin/schedule** and click **I'll do the cleanings myself** (customers can't book until a technician exists).
+3. Set your working hours, job timing, and days off on the same page.
+
+### How it works
+
+- Customers with an available cleaning click **Schedule a cleaning** on their dashboard, pick a day and arrival time, and are booked instantly.
+- Offered times respect your hours, days off, minimum notice, job length (base + minutes per panel), and travel buffer. The database independently refuses double-bookings.
+- Customers can reschedule or cancel online until the cutoff (default 24 hours before). Canceling in time returns the cleaning.
+- Memberships with a minimum gap between cleanings (e.g. Unlimited Care, 30 days) are enforced.
+- **How members earn cleanings:** yearly billing includes the whole year's cleanings up front. Monthly billing unlocks them as months are paid: after paying month *m* of the membership year a member has earned ⌈m × N ÷ 12⌉ (Seasonal: months 1 and 7; Premium: 1, 4, 7, 10; Unlimited: every month). Cleanings expire at the end of the membership year. Earned only when Stripe confirms payment.
+- One-time purchases include one cleaning valid for 12 months.
+- Owner tools (**/admin/schedule**): upcoming appointments with customer notes, **Completed**, **Weather: cancel & return cleaning**, and **No access** (cleaning counts as used); a private calendar subscription link for Apple or Google Calendar.
+
 ## Tests
 
 ```bash
@@ -134,7 +152,7 @@ The owner dashboard (Phase 5) will provide screens for all of this. Until then, 
 | 1 | Public site, design system, quote form, pricing engine, database schema | **Built** (see "Phase 1 verification" below) |
 | 2 | Customer accounts (Supabase Auth) and customer dashboard | **Built** |
 | 3 | Stripe test-mode checkout, subscriptions, billing portal, pricing controls | **Built** |
-| 4 | Booking, availability, entitlements, rescheduling | Schema ready, logic not started |
+| 4 | Booking, availability, entitlements, rescheduling | **Built** |
 | 5 | Owner and technician dashboards | Not started |
 | 6 | Email, reporting, lead follow-up, SEO, launch prep | Not started |
 
@@ -162,6 +180,12 @@ Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 ro
 - **Type check:** all app code was checked against simplified stand-ins for Next.js, Supabase and Stripe, which caught and fixed one real error.
 - Confirmed by the owner on a real machine: `npm run build` with the Stripe package, owner tools, publishing prices to Stripe, instant quote pricing, and a one-time test payment confirmed by webhook (payment and cleaning credit recorded).
 
-### Open decision before Phase 4
+### Decisions made
 
-How members earn included cleanings (all at the start of the membership year, or spread across it, e.g. Seasonal Care's second cleaning after six months of payments) affects what happens if someone cancels early. Phase 4 issues membership cleanings according to that choice.
+- Membership cleanings are spread through the year for monthly billing (owner's choice, 28 Oct 2026). Note: a monthly member's first cleaning unlocks with the first payment, so someone could pay one month, use one cleaning, and cancel. If that becomes a problem, options include a minimum term (disclosed at checkout) or unlocking the first cleaning after the second payment.
+
+### Phase 4 verification
+
+- **Unit tests (43 total):** Pacific-time conversion across both daylight-saving changes, job length, minimum notice, opening hours, double-booking with travel buffer and multiple technicians, closed days and days off, change cutoff, schedule settings form, membership-year math (short months, Stripe timing slack), the cleaning-unlock schedule for every plan, and the calendar feed format.
+- **Database (5 new groups, 24 total):** customers can't call booking functions directly; a booking uses exactly one valid cleaning, never another customer's cleaning or property, and never outside its dates; double-bookings inside the travel buffer are rejected and leave the cleaning untouched; reschedules are limited to the booking's customer and the cleaning's dates; canceling in time returns the cleaning, while no-access and completion use it; the calendar link token is never public.
+- Not yet verified on a real machine: the booking pages, the owner schedule page, membership cleanings issued from real Stripe invoices, and the calendar feed in a calendar app.

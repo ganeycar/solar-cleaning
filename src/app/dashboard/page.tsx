@@ -5,6 +5,10 @@ import { InstructionsForm, ProfileForm } from "@/components/account-forms";
 import { ButtonLink, Container } from "@/components/ui";
 import { signOut } from "@/lib/auth/actions";
 import { openBillingPortal } from "@/lib/billing/actions";
+import { cancelCleaning } from "@/lib/scheduling/actions";
+import { loadSchedulingSettings } from "@/lib/scheduling/data";
+import { canChangeBooking } from "@/lib/scheduling/slots";
+import { getAdminClient } from "@/lib/supabase/admin";
 import { formatCents } from "@/lib/pricing/engine";
 import { CLEANING_REQUESTS } from "@/lib/quote/validate";
 import { getCurrentUser } from "@/lib/supabase/server";
@@ -52,8 +56,21 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 const PAYMENT_STATUS: Record<string, string> = { succeeded: "Paid", failed: "Failed", refunded: "Refunded", partially_refunded: "Partly refunded" };
 
-export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ checkout?: string; billing?: string }> }) {
-  const { checkout, billing } = await searchParams;
+const SCHEDULE_MSG: Record<string, { tone: "ok" | "warn"; text: string }> = {
+  booked: { tone: "ok", text: "You're booked! Your appointment is below." },
+  rescheduled: { tone: "ok", text: "Your appointment has been moved." },
+  canceled: { tone: "ok", text: "Your appointment was canceled and the cleaning is back in your account." },
+  cutoff: { tone: "warn", text: "That appointment is too close to change online. Please contact us." },
+  error: { tone: "warn", text: "We couldn't update that appointment. Please try again or contact us." },
+};
+
+export default async function DashboardPage({ searchParams }: { searchParams: Promise<{ checkout?: string; billing?: string; booked?: string; rescheduled?: string; canceled?: string; schedule?: string }> }) {
+  const sp = await searchParams;
+  const { checkout, billing } = sp;
+  const scheduleMsg = SCHEDULE_MSG[sp.booked ? "booked" : sp.rescheduled ? "rescheduled" : sp.canceled ? "canceled" : sp.schedule ?? ""];
+  const adminForSettings = getAdminClient();
+  const cutoffHours = adminForSettings ? (await loadSchedulingSettings(adminForSettings)).rescheduleCutoffHours : 24;
+  const nowDate = new Date();
   const session = await getCurrentUser();
   if (!session) redirect("/login");
   const { supabase, user } = session;
@@ -108,6 +125,9 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
             <Link href="/admin" className="rounded-full bg-navy px-4 py-2 font-semibold text-white hover:bg-navy-900">Owner tools</Link>
           </div>
         )}
+        {scheduleMsg && (
+          <div role="status" className={`mb-6 rounded-xl border p-4 text-sm ${scheduleMsg.tone === "ok" ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-amber-50 text-amber-900"}`}>{scheduleMsg.text}</div>
+        )}
         {checkout === "success" && (
           <div role="status" className="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
             Thanks! Stripe is confirming your payment. Your booking and receipt appear here once it&apos;s confirmed, usually within a few seconds. Refresh if you don&apos;t see it yet.
@@ -130,12 +150,27 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                         <p className="font-semibold text-navy">{dateTimeFmt.format(new Date(b.scheduled_start))}</p>
                         <p className="text-sm text-muted">{b.properties?.address_line1}, {b.properties?.city}</p>
                       </div>
-                      <span className="rounded-full bg-paper px-3 py-1 text-xs font-semibold">{BOOKING_STATUS[b.status] ?? b.status}</span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-paper px-3 py-1 text-xs font-semibold">{BOOKING_STATUS[b.status] ?? b.status}</span>
+                        {canChangeBooking(new Date(b.scheduled_start), nowDate, cutoffHours) ? (
+                          <>
+                            <Link href={`/schedule?booking=${b.id}`} className="rounded-full border border-navy px-3 py-1 text-xs font-semibold text-navy hover:bg-paper">Reschedule</Link>
+                            <form action={cancelCleaning.bind(null, b.id)}>
+                              <button type="submit" className="rounded-full px-3 py-1 text-xs font-semibold text-red-700 underline">Cancel</button>
+                            </form>
+                          </>
+                        ) : (
+                          <span className="text-xs text-muted">Need a change? <Link href="/contact" className="underline">Contact us</Link></span>
+                        )}
+                      </div>
                     </li>
                   ))}
                 </ul>
               ) : (
-                <Empty>No upcoming appointments. Online scheduling is coming soon; for now we&apos;ll confirm times with you after your quote.</Empty>
+                <Empty>No upcoming appointments.{available > 0 ? " You have a cleaning ready to schedule." : ""}</Empty>
+              )}
+              {available > 0 && (
+                <Link href="/schedule" className="mt-4 inline-block rounded-full bg-gold px-5 py-2 text-sm font-semibold text-navy hover:brightness-95">Schedule a cleaning</Link>
               )}
             </Card>
 
@@ -231,7 +266,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: Pr
                   </div>
                 ))}
               </dl>
-              <p className="mt-3 text-xs text-muted">Included cleanings from your plan are tracked separately from billing.</p>
+              <p className="mt-3 text-xs text-muted">Monthly memberships unlock cleanings through the year as you pay; yearly memberships include the whole year up front. Cleanings are valid until the end of your membership year.</p>
             </Card>
 
             <Card title="Your properties">

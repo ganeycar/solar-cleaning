@@ -1,5 +1,7 @@
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { localDate } from "@/lib/scheduling/slots";
+import { cleaningsEarned, membershipYear } from "./entitlements";
 import { idOf, invoiceSubscriptionId, subscriptionEnding, subscriptionPeriod, subscriptionPriceId, unixToIso } from "./logic";
 
 /**
@@ -96,7 +98,7 @@ async function onCheckoutCompleted(stripe: Stripe, db: SupabaseClient, session: 
 }
 
 /** Fetches the latest subscription from Stripe (avoids applying stale, out-of-order events) and upserts it. */
-export async function syncSubscription(stripe: Stripe, db: SupabaseClient, subscriptionId: string): Promise<string | null> {
+export async function syncSubscription(stripe: Stripe, db: SupabaseClient, subscriptionId: string): Promise<{ id: string; periodStart: string | null } | null> {
   const sub = (await stripe.subscriptions.retrieve(subscriptionId)) as unknown as Loose;
   const meta: Loose = sub.metadata ?? {};
   if (!meta.quote_id) return null; // Not created by this app.
@@ -128,6 +130,7 @@ export async function syncSubscription(stripe: Stripe, db: SupabaseClient, subsc
           current_period_end: period.end,
           cancel_at_period_end: subscriptionEnding(sub),
           canceled_at: unixToIso(sub.canceled_at ?? sub.ended_at),
+          started_at: unixToIso(sub.start_date) ?? period.start,
           auto_renew_consent_at: meta.consent_at || null,
           consent_terms_version: Number.isFinite(termsVersion) ? termsVersion : null,
           consent_disclosure: meta.disclosure || null,
@@ -138,7 +141,42 @@ export async function syncSubscription(stripe: Stripe, db: SupabaseClient, subsc
       .single(),
     "save subscription",
   ) as Loose;
-  return row.id;
+  return { id: row.id, periodStart: period.start };
+}
+
+const TZ = "America/Los_Angeles";
+
+/**
+ * Issues the cleanings a member has earned so far this membership year
+ * (spread through the year for monthly billing; all at once for annual).
+ * Each cleaning has a unique reference, so re-running never duplicates.
+ */
+async function issueMembershipCleanings(db: SupabaseClient, subscriptionRowId: string, stripeSubId: string, periodStart: string) {
+  const sub = must(
+    await db.from("subscriptions").select("customer_id, started_at, plans(name, cleanings_per_year), plan_prices(billing_interval)").eq("id", subscriptionRowId).single(),
+    "load subscription for cleanings",
+  ) as Loose;
+  const plan = (Array.isArray(sub.plans) ? sub.plans[0] : sub.plans) as Loose | null;
+  const price = (Array.isArray(sub.plan_prices) ? sub.plan_prices[0] : sub.plan_prices) as Loose | null;
+  if (!plan || !price || !sub.started_at) return;
+
+  const year = membershipYear(sub.started_at, periodStart);
+  const earned = cleaningsEarned(plan.cleanings_per_year, price.billing_interval, year.monthInYear);
+  if (earned === 0) return;
+
+  const validFrom = localDate(new Date(year.yearStart), TZ);
+  const validUntil = localDate(new Date(new Date(year.yearEnd).getTime() - 24 * 3600_000), TZ);
+  const rows = Array.from({ length: earned }, (_, i) => ({
+    customer_id: sub.customer_id,
+    subscription_id: subscriptionRowId,
+    source: "plan",
+    status: "available",
+    valid_from: validFrom,
+    valid_until: validUntil,
+    source_ref: `${stripeSubId}:y${year.yearIndex}:c${i + 1}`,
+    note: `${plan.name}: cleaning ${i + 1} of membership year ${year.yearIndex + 1}`,
+  }));
+  must(await db.from("service_entitlements").upsert(rows, { onConflict: "source_ref", ignoreDuplicates: true }), "issue membership cleanings");
 }
 
 async function invoicePaymentIntentId(stripe: Stripe, invoiceId: string, inv: Loose): Promise<string | null> {
@@ -158,9 +196,13 @@ async function onInvoice(stripe: Stripe, db: SupabaseClient, inv: Loose, status:
   let subscriptionRowId: string | null = null;
   let customerId: string | null = null;
 
+  let periodStart: string | null = null;
   if (subId) {
-    subscriptionRowId = await syncSubscription(stripe, db, subId);
-    if (!subscriptionRowId) return; // Not one of ours.
+    const synced = await syncSubscription(stripe, db, subId);
+    if (!synced) return; // Not one of ours.
+    subscriptionRowId = synced.id;
+    // Prefer the invoice's own billing period (correct even if the event arrives late).
+    periodStart = unixToIso(inv.lines?.data?.[0]?.period?.start) ?? synced.periodStart;
     const sub = must(await db.from("subscriptions").select("customer_id").eq("id", subscriptionRowId).single(), "subscription lookup") as Loose;
     customerId = sub.customer_id;
   } else {
@@ -168,9 +210,8 @@ async function onInvoice(stripe: Stripe, db: SupabaseClient, inv: Loose, status:
   }
 
   const amount = status === "succeeded" ? inv.amount_paid : inv.amount_due;
-  if (!amount) return; // $0 invoices (e.g. fully discounted) aren't payments.
-
-  must(
+  // $0 invoices (e.g. fully discounted) aren't recorded as payments, but still earn cleanings below.
+  if (amount) must(
     await db.from("payments").upsert(
       {
         customer_id: customerId,
@@ -186,6 +227,11 @@ async function onInvoice(stripe: Stripe, db: SupabaseClient, inv: Loose, status:
     ),
     "record invoice payment",
   );
+
+  // Paying for a period earns cleanings; a failed payment never does.
+  if (status === "succeeded" && subscriptionRowId && subId && periodStart) {
+    await issueMembershipCleanings(db, subscriptionRowId, subId, periodStart);
+  }
 }
 
 async function onChargeRefunded(db: SupabaseClient, charge: Loose) {
