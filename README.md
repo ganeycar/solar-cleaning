@@ -227,7 +227,8 @@ Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 ro
 
 - **Unit tests (50 total):** membership revenue math (monthly and yearly values, MRR, ARR, revenue by plan and city, refunds, windows), profit per plan, and the business-settings form (colors, links, verified flags only when filled).
 - **Database (3 new groups, 27 total):** technicians can start and complete only their own jobs; completion requires before and after photos and uses the cleaning; technicians see only their own jobs, addresses, and photos; customers see photos of only their own jobs; inactive technicians can't be assigned jobs; your cost figures are never public.
-- Not yet verified on a real machine: every Phase 5 page, photo upload from a phone camera, and the printed report.
+- Confirmed by the owner on a real machine (29 Oct 2026): build, migration, Overview, Business, Customers (goodwill cleaning, manual booking), the technician flow with photos, and the customer report.
+- Not yet verified: photo upload from a phone camera (after deployment).
 
 ### Phase 4 verification
 
