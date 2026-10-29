@@ -22,7 +22,9 @@ export async function ensurePortalConfiguration(stripe: Stripe, admin: SupabaseC
   if (error) throw new Error(`Could not load membership prices: ${error.message}`);
 
   const byProduct = new Map<string, string[]>();
-  for (const r of (rows ?? []) as Array<{ stripe_price_id: string; plans: { stripe_product_id: string | null; kind: string; is_active: boolean } }>) {
+  type PlanRef = { stripe_product_id: string | null; kind: string; is_active: boolean };
+  // Supabase may return the joined plan as an object or a one-item array.
+  for (const r of (rows ?? []) as unknown as Array<{ stripe_price_id: string; plans: PlanRef | PlanRef[] | null }>) {
     const plan = Array.isArray(r.plans) ? r.plans[0] : r.plans;
     if (!plan || plan.kind !== "subscription" || !plan.is_active || !plan.stripe_product_id) continue;
     byProduct.set(plan.stripe_product_id, [...(byProduct.get(plan.stripe_product_id) ?? []), r.stripe_price_id]);

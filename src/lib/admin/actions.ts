@@ -133,7 +133,7 @@ export async function publishPrice(priceId: string) {
     .single();
   if (!price || price.status !== "draft") fail(path, "Only draft prices can be published.");
   if (price.amount_cents == null) fail(path, "Enter an amount before publishing.");
-  const plan = (Array.isArray(price.plans) ? price.plans[0] : price.plans) as { id: string; name: string; kind: string; stripe_product_id: string | null };
+  const plan = (Array.isArray(price.plans) ? price.plans[0] : price.plans) as unknown as { id: string; name: string; kind: string; stripe_product_id: string | null };
 
   let previousStripePrice: string | null = null;
   if (plan.kind === "subscription") {
