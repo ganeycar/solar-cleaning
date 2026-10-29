@@ -23,14 +23,16 @@ test("accepts and normalizes a valid request", () => {
   assert.equal(r.data.marketingSmsOptIn, false);
 });
 
-test("defaults unknown roof/access to the review-triggering values", () => {
+test("roof and access must be chosen explicitly; Not sure is accepted", () => {
   const { roofType, accessType, ...rest } = good;
-  const r = validateQuoteRequest(getter(rest));
-  assert.ok(r.ok);
-  if (r.ok) {
-    assert.equal(r.data.roofType, "unknown");
-    assert.equal(r.data.accessType, "unsure");
+  const missing = validateQuoteRequest(getter(rest));
+  assert.equal(missing.ok, false);
+  if (!missing.ok) {
+    assert.ok("roofType" in missing.errors);
+    assert.ok("accessType" in missing.errors);
   }
+  const unsure = validateQuoteRequest(getter({ ...rest, roofType: "unknown", accessType: "unsure" }));
+  assert.ok(unsure.ok);
 });
 
 test("rejects bad fields with per-field messages", () => {

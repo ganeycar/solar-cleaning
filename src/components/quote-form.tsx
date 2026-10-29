@@ -30,17 +30,21 @@ function Select({ name, options, defaultValue, error, required = true }: { name:
 export function QuoteForm({ defaultCleaning, defaultCity }: { defaultCleaning?: string; defaultCity?: string }) {
   const [state, action, pending] = useActionState(submitQuote, initial);
   const e: FieldErrors = state.kind === "error" ? state.fieldErrors ?? {} : {};
+  // After an error, refill what the customer typed (React resets forms after each submit).
+  const v: Record<string, string> = state.kind === "error" ? state.values ?? {} : {};
 
   if (state.kind === "submitted") return <QuoteResult state={state} />;
 
   const input = (name: string, props: React.InputHTMLAttributes<HTMLInputElement> = {}) => (
-    <input id={name} name={name} aria-invalid={Boolean(e[name as keyof FieldErrors])} aria-describedby={e[name as keyof FieldErrors] ? `${name}-error` : undefined} className="field" {...props} />
+    <input id={name} name={name} aria-invalid={Boolean(e[name as keyof FieldErrors])} aria-describedby={e[name as keyof FieldErrors] ? `${name}-error` : undefined} className="field" {...props} defaultValue={v[name] ?? props.defaultValue} />
   );
 
   return (
-    <form action={action} className="space-y-10" noValidate={false}>
+    <form key={state.kind === "error" ? state.attempt : "new"} action={action} className="space-y-10" noValidate={false}>
       {state.kind === "error" && (
-        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">{state.message}</div>
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          {state.message} If you attached photos, please attach them again.
+        </div>
       )}
 
       <fieldset className="grid gap-5 sm:grid-cols-2">
@@ -49,23 +53,23 @@ export function QuoteForm({ defaultCleaning, defaultCity }: { defaultCleaning?: 
           {input("panelCount", { type: "number", min: 1, max: 5000, inputMode: "numeric", required: true })}
         </Field>
         <Field label="Property type" name="propertyType" error={e.propertyType}>
-          <Select name="propertyType" options={PROPERTY_TYPES} defaultValue="single_family" error={e.propertyType} />
+          <Select name="propertyType" options={PROPERTY_TYPES} defaultValue={v.propertyType ?? "single_family"} error={e.propertyType} />
         </Field>
         <Field label="Number of stories" name="stories" error={e.stories}>
           {input("stories", { type: "number", min: 1, max: 10, defaultValue: 1, inputMode: "numeric", required: true })}
         </Field>
         <Field label="Roof type" name="roofType" error={e.roofType}>
-          <Select name="roofType" options={ROOF_TYPES} defaultValue="unknown" error={e.roofType} />
+          <Select name="roofType" options={ROOF_TYPES} defaultValue={v.roofType ?? ""} error={e.roofType} />
         </Field>
         <Field label="How can the panels be reached?" name="accessType" error={e.accessType} hint="If you're not sure, choose “Not sure.” We'll review before quoting.">
-          <Select name="accessType" options={ACCESS_TYPES} defaultValue="unsure" error={e.accessType} />
+          <Select name="accessType" options={ACCESS_TYPES} defaultValue={v.accessType ?? ""} error={e.accessType} />
         </Field>
         <Field label="Service you're interested in" name="cleaningRequest" error={e.cleaningRequest}>
-          <Select name="cleaningRequest" options={CLEANING_REQUESTS} defaultValue={defaultCleaning ?? "not_sure"} error={e.cleaningRequest} />
+          <Select name="cleaningRequest" options={CLEANING_REQUESTS} defaultValue={v.cleaningRequest ?? defaultCleaning ?? "not_sure"} error={e.cleaningRequest} />
         </Field>
         <div className="sm:col-span-2">
           <Field label="Access details (optional)" name="accessDetails" hint="Gates, dogs, steep slopes, trees, where the water spigot is, anything we should know.">
-            <textarea id="accessDetails" name="accessDetails" rows={3} maxLength={2000} className="field" />
+            <textarea id="accessDetails" name="accessDetails" rows={3} maxLength={2000} defaultValue={v.accessDetails} className="field" />
           </Field>
         </div>
         <div className="sm:col-span-2">
@@ -95,7 +99,7 @@ export function QuoteForm({ defaultCleaning, defaultCity }: { defaultCleaning?: 
         <Field label="Email" name="email" error={e.email}>{input("email", { type: "email", autoComplete: "email", required: true })}</Field>
         <Field label="Mobile phone" name="phone" error={e.phone}>{input("phone", { type: "tel", autoComplete: "tel", required: true })}</Field>
         <Field label="Preferred appointment time" name="preferredWindow">
-          <Select name="preferredWindow" options={PREFERRED_WINDOWS} defaultValue="flexible" />
+          <Select name="preferredWindow" options={PREFERRED_WINDOWS} defaultValue={v.preferredWindow ?? "flexible"} />
         </Field>
         <Field label="Referral code (optional)" name="referralCode">{input("referralCode", { maxLength: 40 })}</Field>
 
@@ -107,8 +111,8 @@ export function QuoteForm({ defaultCleaning, defaultCity }: { defaultCleaning?: 
 
         <div className="space-y-3 text-sm sm:col-span-2">
           <p className="text-muted">We'll email and text you about this request and any appointment you book. These service messages aren't marketing.</p>
-          <label className="flex items-start gap-3"><input type="checkbox" name="marketingEmailOptIn" className="mt-1" /> <span>Also email me occasional seasonal reminders and offers. (Optional)</span></label>
-          <label className="flex items-start gap-3"><input type="checkbox" name="marketingSmsOptIn" className="mt-1" /> <span>Also text me occasional reminders and offers. Message and data rates may apply; reply STOP to opt out. (Optional)</span></label>
+          <label className="flex items-start gap-3"><input type="checkbox" name="marketingEmailOptIn" defaultChecked={v.marketingEmailOptIn === "on"} className="mt-1" /> <span>Also email me occasional seasonal reminders and offers. (Optional)</span></label>
+          <label className="flex items-start gap-3"><input type="checkbox" name="marketingSmsOptIn" defaultChecked={v.marketingSmsOptIn === "on"} className="mt-1" /> <span>Also text me occasional reminders and offers. Message and data rates may apply; reply STOP to opt out. (Optional)</span></label>
         </div>
       </fieldset>
 

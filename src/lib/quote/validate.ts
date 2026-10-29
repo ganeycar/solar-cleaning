@@ -125,10 +125,11 @@ export function validateQuoteRequest(get: Getter): ValidationResult {
 
   const propertyType = oneOf(clean(get("propertyType"), 40), PROPERTY_TYPES);
   if (!propertyType) errors.propertyType = "Choose a property type.";
-  const roofType = oneOf(clean(get("roofType"), 40) || "unknown", ROOF_TYPES);
+  // Roof and access must be chosen on purpose ("Not sure" is a valid choice and goes to review).
+  const roofType = oneOf(clean(get("roofType"), 40), ROOF_TYPES);
   if (!roofType) errors.roofType = "Choose a roof type, or “Not sure.”";
-  const accessType = oneOf(clean(get("accessType"), 40) || "unsure", ACCESS_TYPES);
-  if (!accessType) errors.accessType = "Choose how the panels can be reached.";
+  const accessType = oneOf(clean(get("accessType"), 40), ACCESS_TYPES);
+  if (!accessType) errors.accessType = "Choose how the panels can be reached, or “Not sure.”";
   const cleaningRequest = oneOf(clean(get("cleaningRequest"), 40) || "not_sure", CLEANING_REQUESTS);
   if (!cleaningRequest) errors.cleaningRequest = "Choose a service.";
   const preferredWindow = oneOf(clean(get("preferredWindow"), 40) || "flexible", PREFERRED_WINDOWS);

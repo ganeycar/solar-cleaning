@@ -10,7 +10,7 @@ import { IMAGE_EXT, MAX_PHOTOS, MAX_PHOTO_BYTES, sniffImageType, validateQuoteRe
 
 export type QuoteFormState =
   | { kind: "idle" }
-  | { kind: "error"; message: string; fieldErrors?: FieldErrors }
+  | { kind: "error"; message: string; fieldErrors?: FieldErrors; values?: Record<string, string>; attempt?: number }
   | { kind: "submitted"; status: QuoteStatus; priceLabel: string | null; reference: string; reviewReasons: string[] };
 
 const DB_STATUS: Record<QuoteStatus, string> = {
@@ -21,7 +21,21 @@ const DB_STATUS: Record<QuoteStatus, string> = {
   waitlist: "waitlist",
 };
 
+/** Text the customer entered (no files, no honeypot), so the form can be refilled after an error. */
+function enteredValues(form: FormData): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [k, v] of form.entries()) {
+    if (typeof v === "string" && k !== "company_website" && !k.startsWith("$")) out[k] = v.slice(0, 2000);
+  }
+  return out;
+}
+
 export async function submitQuote(_prev: QuoteFormState, form: FormData): Promise<QuoteFormState> {
+  const result = await processQuote(form);
+  return result.kind === "error" ? { ...result, values: enteredValues(form), attempt: Date.now() } : result;
+}
+
+async function processQuote(form: FormData): Promise<QuoteFormState> {
   const db = getAdminClient();
   if (!db) {
     return { kind: "error", message: "Online quotes aren't connected yet. Please use the contact page and we'll follow up." };
