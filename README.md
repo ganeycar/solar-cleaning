@@ -286,7 +286,8 @@ Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 ro
 
 - **Unit tests (64 total):** every email's content (escaping of customer-entered text, prices only when published, the California membership acknowledgment's terms and cancellation instructions, unsubscribe links and mailing address only on optional emails, review button only when set, Pacific times); reminder timing across midnight; follow-up timing (day 2, day 7, never after 30 days); renewal and yearly-reminder windows; expiring cleanings; signed unsubscribe links; the lead funnel; and the launch checklist (never exposes secret values).
 - **Database (1 new group, 28 total):** email keys can't repeat; unsubscribes are stored lowercase; the email log, unsubscribes, and job runs are owner-only; the review link and mailing address aren't public.
-- Not yet verified on a real machine: actual delivery through Resend, Vercel's daily scheduled run, and one-click unsubscribe in Gmail.
+- Confirmed by the owner (30 Oct 2026): migration, and a test email delivered through Resend.
+- Not yet verified: the event emails end to end, Vercel's daily scheduled run, and one-click unsubscribe in Gmail.
 
 ### Phase 5 verification
 
