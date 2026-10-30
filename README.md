@@ -1,4 +1,4 @@
-# Solar Cleaning Co. — website and operating platform
+# Solano Solar Cleaning — website and operating platform
 
 Website, quoting, memberships, scheduling, and dashboards for a solar panel cleaning business based in Vacaville, CA.
 

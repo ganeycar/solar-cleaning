@@ -49,7 +49,7 @@ export interface Territory {
 }
 
 export const DEFAULT_SETTINGS: SiteSettings = {
-  businessName: "Solar Cleaning Co.",
+  businessName: "Solano Solar Cleaning",
   tagline: "Solar panel cleaning and care memberships for Solano and Yolo County homes.",
   phone: null,
   email: null,

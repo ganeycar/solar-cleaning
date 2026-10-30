@@ -2,7 +2,7 @@
 -- purchased until the owner enters and publishes prices.
 
 insert into public.business_settings (id, business_name, tagline, headquarters_city)
-values (1, 'Solar Cleaning Co.', 'Solar panel cleaning and care memberships for Solano and Yolo County homes.', 'Vacaville')
+values (1, 'Solano Solar Cleaning', 'Solar panel cleaning and care memberships for Solano and Yolo County homes.', 'Vacaville')
 on conflict (id) do nothing;
 
 -- Launch in Vacaville; other cities are listed but on a waitlist until the
