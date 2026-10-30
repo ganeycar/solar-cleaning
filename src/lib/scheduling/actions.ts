@@ -2,6 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
+import { notifyBooking } from "@/lib/email/notify";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { loadAvailabilityInputs, loadSchedulingSettings } from "./data";
@@ -90,7 +92,7 @@ export async function bookCleaning(form: FormData): Promise<void> {
   if (spacing) back({ error: "too-soon", days: String(spacing), property: propertyId });
 
   const notes = String(form.get("notes") ?? "").trim().slice(0, 1000) || null;
-  const { error } = await admin.rpc("book_cleaning", {
+  const { data: newBookingId, error } = await admin.rpc("book_cleaning", {
     p_customer: session.user.id,
     p_entitlement: credit.id,
     p_property: propertyId,
@@ -104,6 +106,7 @@ export async function bookCleaning(form: FormData): Promise<void> {
     console.error("booking failed", error.message);
     back({ error: dbErrorCode(error), property: propertyId });
   }
+  if (typeof newBookingId === "string") after(() => notifyBooking(admin, newBookingId, "booked"));
   revalidatePath("/dashboard");
   redirect("/dashboard?booked=1");
 }
@@ -142,6 +145,7 @@ export async function rescheduleCleaning(bookingId: string, form: FormData): Pro
     console.error("reschedule failed", error.message);
     back({ error: dbErrorCode(error), booking: bookingId });
   }
+  after(() => notifyBooking(admin, bookingId, "rescheduled"));
   revalidatePath("/dashboard");
   redirect("/dashboard?rescheduled=1");
 }
@@ -162,6 +166,7 @@ export async function cancelCleaning(bookingId: string): Promise<void> {
     console.error("cancel failed", error.message);
     redirect("/dashboard?schedule=error");
   }
+  after(() => notifyBooking(admin, bookingId, "canceled_by_customer"));
   revalidatePath("/dashboard");
   redirect("/dashboard?canceled=1");
 }

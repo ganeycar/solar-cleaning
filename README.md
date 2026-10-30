@@ -2,7 +2,7 @@
 
 Website, quoting, memberships, scheduling, and dashboards for a solar panel cleaning business based in Vacaville, CA.
 
-**Status: Phase 5 of 6.** Public site, quotes, customer accounts, Stripe checkout and memberships (test mode), owner pricing tools, online booking with cleaning tracking, the owner dashboard, and the technician phone app are built. Nothing is deployed, and live payments are blocked until you approve them.
+**Status: all 6 phases built.** Public site, quotes, customer accounts, Stripe checkout and memberships (test mode), owner pricing tools, online booking with cleaning tracking, the owner dashboard, the technician phone app, automatic emails, lead follow-up, and launch tools. Nothing is deployed, and live payments are blocked until you approve them. Next: visual redesign, then launch.
 
 ## Tech
 
@@ -127,6 +127,67 @@ update public.profiles set role = 'owner' where email = 'you@yourdomain.com';
 
 - Completed cleanings in **Service history** have a **Photos & report** page with before-and-after photos, notes, and anything the technician noticed. It prints or saves as a PDF.
 
+## Emails, follow-up, and launch tools (Phase 6)
+
+### One-time setup
+
+1. Run `supabase/migrations/20261030000008_communications.sql` in the Supabase SQL Editor (once).
+2. In Resend, create an API key (**API Keys → Create**, "Sending access"). Add to `.env.local`:
+   ```
+   RESEND_API_KEY=re_...
+   EMAIL_TEST_TO=the-email-you-signed-up-to-resend-with
+   CRON_SECRET=any-long-random-string
+   ```
+   Leave `EMAIL_FROM` empty until your domain is verified. Restart `npm run dev`.
+3. On **/admin/business**, add your mailing address (a PO box is fine) and, later, your Google review link.
+4. On **/admin/launch**, click **Send me a test email**.
+
+**Test mode:** with `EMAIL_TEST_TO` set, every email goes to you, and the subject shows who it was meant for (`[TEST to customer@…]`). Resend's test sender can't reach anyone else anyway.
+
+### What gets sent
+
+| When | To | Email |
+|---|---|---|
+| Quote submitted | Customer | Received (with price if auto-priced) |
+| Quote submitted | Owner | New quote alert |
+| One-time payment confirmed | Customer | Payment received, schedule your cleaning |
+| Membership starts | Customer | **Acknowledgment with renewal terms and how to cancel** (California law) |
+| Membership payment fails | Customer + owner | Update your card |
+| Booked / rescheduled / canceled | Customer (+ owner if the customer did it) | Confirmation with arrival time and prep tips |
+| Day before appointment | Customer | Reminder |
+| Weather cancel / stopped for safety | Customer | Cleaning returned, rebook |
+| No access | Customer + owner | Visit counted as used |
+| Job completed | Customer | Photos and report link, plus review request if a review link is set |
+| 2 and 7 days after an unbooked priced quote | Customer | Follow-up (unsubscribe link, max 2) |
+| 15–40 days before a yearly renewal | Customer | Renewal notice (California law) |
+| Before each membership anniversary (monthly plans) | Customer | Yearly reminder of terms and how to cancel |
+| Cleanings expiring within 30 days | Customer | Schedule before they expire |
+
+- Every email is recorded on **Leads & emails** and is sent at most once, even if a payment notice or the daily job repeats.
+- Email problems never block a booking or payment.
+- Unsubscribing stops only optional follow-ups; appointment, payment, and legally required notices still go out.
+- Stripe can also send its own receipts: Stripe dashboard → **Settings → Customer emails → Successful payments**.
+
+### Daily job
+
+`/api/cron/daily` sends reminders, follow-ups, and notices. Once deployed, Vercel runs it every morning (`vercel.json`, 16:00 UTC ≈ 8–9 am Pacific) using `CRON_SECRET`. On your computer, use **Run daily job now** on the Launch page. Running it twice never sends duplicates.
+
+### Owner tools
+
+- **Leads & emails:** quote requests, auto-priced vs. needing review, booked, close rate, follow-up wins, city breakdown (including out-of-area demand), quotes waiting on you, priced-but-unbooked quotes, and every email sent.
+- **Launch:** a live checklist of what's set up and what's left, plus test buttons.
+
+## Launch guide (only after you approve)
+
+1. **Name and domain:** choose the name, buy the domain, register the fictitious business name, set it on the Business page.
+2. **Email domain:** Resend → **Domains → Add domain**, add the DNS records it shows at your domain registrar, wait for "Verified". Then set `EMAIL_FROM="Your Business <hello@yourdomain.com>"`, `EMAIL_REPLY_TO` to the inbox you read, and remove `EMAIL_TEST_TO`.
+3. **Sign-in emails:** Supabase → **Authentication → Emails → SMTP Settings** → enable custom SMTP with Resend (host `smtp.resend.com`, port 465, user `resend`, password = a Resend API key, sender = your domain address). Supabase's built-in sender only reaches your own team.
+4. **Deploy:** import the repo at [vercel.com/new](https://vercel.com/new), add every variable from `.env.example` (with `NEXT_PUBLIC_SITE_URL=https://yourdomain.com`), deploy, then add your domain in Vercel → **Settings → Domains**.
+5. **Supabase URLs:** Authentication → **URL Configuration**: Site URL `https://yourdomain.com`; add `https://yourdomain.com/**` to Redirect URLs.
+6. **Stripe:** finish business verification. In **test mode** first, add a webhook endpoint `https://yourdomain.com/api/stripe/webhook` with the same events as the `stripe listen` command, put its signing secret in Vercel, and run a test purchase on the live site.
+7. **Go live (your approval):** switch to live Stripe keys, a live webhook secret, and `STRIPE_LIVE_MODE_APPROVED=true`; re-publish prices in live mode on Plans & prices; set `NEXT_PUBLIC_SITE_INDEXABLE=true`; redeploy.
+8. **After launch:** check **/admin/launch** shows everything done, submit `/sitemap.xml` in Google Search Console, and follow the "Getting found" checklist.
+
 ## Getting found on Google and AI search
 
 Google's guidance (May 2026) is that optimizing for AI search *is* regular SEO: helpful first-hand content, clear structure, real images, accurate business information. Separate AI files (like `llms.txt`) and AI-only markup aren't needed.
@@ -166,16 +227,14 @@ Prices are set and published from **/admin/pricing** (plans) and **/admin/settin
 ## Replacing placeholders
 
 - **Photos:** Pages show styled placeholders labeled "Photo: …". Add your own photos to `public/images/` and pass `src="/images/your-photo.jpg"` to the `PhotoSlot` component on that page. Use photos of your own work.
-- **Business name, phone, email, colors, logo:** the `business_settings` table.
-- **License / insurance:** enter them in `business_settings` and set `license_verified` / `insurance_verified` to true. They're never shown otherwise.
+- **Business name, phone, email, colors, logo, review link, mailing address:** the **Business** page in owner tools.
+- **License / insurance:** enter them on the Business page and tick "confirmed". They're never shown otherwise.
 - **City pages:** `src/content/cities.ts`. **FAQ:** `src/content/faq.ts`.
 - **Legal pages:** `src/app/legal/*`. These are drafts with [bracketed] blanks. Have a California attorney review them.
 
-## Deploying (when you're ready — not before)
+## Deploying
 
-1. Import the repo at [vercel.com/new](https://vercel.com/new).
-2. Add the variables from `.env.example` in *Settings → Environment Variables*.
-3. Keep `NEXT_PUBLIC_SITE_INDEXABLE=false` until launch; that tells search engines not to index the site.
+See the **Launch guide** above. Keep `NEXT_PUBLIC_SITE_INDEXABLE=false` until launch day.
 
 ## Security notes
 
@@ -193,7 +252,7 @@ Prices are set and published from **/admin/pricing** (plans) and **/admin/settin
 | 3 | Stripe test-mode checkout, subscriptions, billing portal, pricing controls | **Built** |
 | 4 | Booking, availability, entitlements, rescheduling | **Built** |
 | 5 | Owner and technician dashboards | **Built** |
-| 6 | Email, reporting, lead follow-up, SEO, launch prep | Not started |
+| 6 | Email, reporting, lead follow-up, SEO, launch prep | **Built** |
 
 ### Phase 1 verification
 
@@ -222,6 +281,12 @@ Confirmed by the owner on a real machine: `npm install`, `next build` (all 26 ro
 ### Decisions made
 
 - Membership cleanings are spread through the year for monthly billing (owner's choice, 28 Oct 2026). Note: a monthly member's first cleaning unlocks with the first payment, so someone could pay one month, use one cleaning, and cancel. If that becomes a problem, options include a minimum term (disclosed at checkout) or unlocking the first cleaning after the second payment.
+
+### Phase 6 verification
+
+- **Unit tests (64 total):** every email's content (escaping of customer-entered text, prices only when published, the California membership acknowledgment's terms and cancellation instructions, unsubscribe links and mailing address only on optional emails, review button only when set, Pacific times); reminder timing across midnight; follow-up timing (day 2, day 7, never after 30 days); renewal and yearly-reminder windows; expiring cleanings; signed unsubscribe links; the lead funnel; and the launch checklist (never exposes secret values).
+- **Database (1 new group, 28 total):** email keys can't repeat; unsubscribes are stored lowercase; the email log, unsubscribes, and job runs are owner-only; the review link and mailing address aren't public.
+- Not yet verified on a real machine: actual delivery through Resend, Vercel's daily scheduled run, and one-click unsubscribe in Gmail.
 
 ### Phase 5 verification
 

@@ -108,3 +108,51 @@ test("business settings form validates colors, links, phone, and only verifies f
   assert.equal(bad.ok, false);
   if (!bad.ok) assert.equal(bad.errors.length, 4);
 });
+
+import { leadFunnel, pct } from "./leads.ts";
+
+test("lead funnel counts statuses, close rate, follow-up wins, and cities in the window", () => {
+  const q = (status: string, city: string, daysAgo: number, followUps = 0) => ({ status, city, createdAt: new Date(now.getTime() - daysAgo * 86400_000).toISOString(), priceCents: null, followUps });
+  const f = leadFunnel([
+    q("quoted", "Vacaville", 3), q("converted", "Vacaville", 5, 1), q("converted", "Davis", 10), q("needs_review", "Dixon", 1),
+    q("out_of_area", "Sacramento", 2), q("converted", "Vacaville", 200),
+  ], now, 30);
+  assert.equal(f.total, 5);
+  assert.equal(f.booked, 2);
+  assert.equal(f.needsReview, 1);
+  assert.equal(f.closeRate, 2 / 3);
+  assert.equal(f.bookedAfterFollowUp, 1);
+  assert.equal(f.byCity[0].label, "Vacaville");
+  assert.equal(f.byCity[0].requests, 2);
+  assert.equal(pct(f.closeRate), "67%");
+  assert.equal(pct(null), "—");
+});
+
+import { launchChecks, readiness, type LaunchFacts } from "./launch.ts";
+
+test("launch checklist flags test setups and never exposes secret values", () => {
+  const base: LaunchFacts = {
+    env: { NEXT_PUBLIC_SITE_URL: "http://localhost:3000", STRIPE_SECRET_KEY: "sk_test_zq9VALUEzq9", NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: "pk_test_x", RESEND_API_KEY: "re_zq9VALUEzq9", EMAIL_TEST_TO: "me@example.com" },
+    publishedPrices: 0, pricingRulesPublished: false, activeTechnicians: 1,
+    business: { phone: null, email: "hi@example.com", mailingAddress: null, reviewUrl: null, licenseVerified: false, insuranceVerified: false },
+    lastWebhookAt: null, failedWebhooks: 0, lastDailyRunAt: null, lastDailyError: null, failedEmails7d: 0, now,
+  };
+  const checks = launchChecks(base);
+  const by = (id: string) => checks.find((c) => c.id === id)!;
+  assert.equal(by("site_url").state, "todo");
+  assert.equal(by("stripe_live").state, "manual");
+  assert.equal(by("test_mode").state, "todo");
+  assert.equal(by("sender").state, "todo");
+  assert.equal(by("resend").state, "ok");
+  assert.ok(!JSON.stringify(checks).includes("zq9VALUEzq9"), "no secret values in output");
+  const r = readiness(checks);
+  assert.ok(r.done < r.total);
+
+  const live = launchChecks({ ...base, env: { ...base.env, NEXT_PUBLIC_SITE_URL: "https://example.com", STRIPE_SECRET_KEY: "sk_live_x", STRIPE_LIVE_MODE_APPROVED: "true", EMAIL_TEST_TO: "", EMAIL_FROM: "Biz <hi@example.com>", CRON_SECRET: "0123456789abcdef0" }, lastDailyRunAt: new Date(now.getTime() - 3600_000).toISOString() });
+  const lby = (id: string) => live.find((c) => c.id === id)!;
+  assert.equal(lby("site_url").state, "ok");
+  assert.equal(lby("stripe_live").state, "ok");
+  assert.equal(lby("sender").state, "ok");
+  assert.equal(lby("cron_secret").state, "ok");
+  assert.equal(lby("cron_ran").state, "ok");
+});

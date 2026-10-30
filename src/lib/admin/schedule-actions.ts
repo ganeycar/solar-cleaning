@@ -3,7 +3,9 @@
 import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
+import { notifyBooking, type BookingEvent } from "@/lib/email/notify";
 import { addDays, parseSchedulingForm, zonedToUtc } from "@/lib/scheduling/slots";
 import { getAdminClient } from "@/lib/supabase/admin";
 
@@ -76,16 +78,17 @@ export async function generateCalendarToken() {
   done("New calendar link created. Any old link stops working.");
 }
 
-async function bookingRpc(fn: string, args: Record<string, unknown>, ok: string) {
+async function bookingRpc(fn: string, args: Record<string, unknown>, ok: string, event: BookingEvent) {
   const { admin } = await staffAdmin();
   const { error } = await admin.rpc(fn, args);
   if (error) fail(error.message.includes("BOOKING_NOT_CHANGEABLE") ? "That appointment can't be changed (it may already be completed or canceled)." : `Couldn't update: ${error.message}`);
+  after(() => notifyBooking(admin, String(args.p_booking), event, { notifyOwner: false }));
   done(ok);
 }
 
 export async function markCompleted(bookingId: string) {
   if (!UUID.test(bookingId)) fail("Unknown appointment.");
-  await bookingRpc("complete_booking", { p_booking: bookingId }, "Marked completed.");
+  await bookingRpc("complete_booking", { p_booking: bookingId }, "Marked completed. The customer was emailed their report link.", "completed");
 }
 
 export async function weatherCancel(bookingId: string) {
@@ -93,7 +96,8 @@ export async function weatherCancel(bookingId: string) {
   await bookingRpc(
     "cancel_booking",
     { p_booking: bookingId, p_reason: "Rescheduled for weather or safety", p_return_cleaning: true, p_customer: null },
-    "Appointment canceled for weather. The customer's cleaning is back in their account so they can rebook. Let them know.",
+    "Appointment canceled for weather. The customer's cleaning is back in their account, and they were emailed to rebook.",
+    "weather",
   );
 }
 
@@ -102,6 +106,7 @@ export async function noAccess(bookingId: string) {
   await bookingRpc(
     "cancel_booking",
     { p_booking: bookingId, p_reason: "No access at appointment time", p_return_cleaning: false, p_customer: null },
-    "Recorded as no access. The cleaning counts as used.",
+    "Recorded as no access. The cleaning counts as used, and the customer was emailed.",
+    "no_access",
   );
 }

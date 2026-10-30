@@ -3,7 +3,9 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { requireStaff } from "@/lib/auth/staff";
+import { notifyBooking } from "@/lib/email/notify";
 import { ACCESS_TYPES, normalizePhone, PROPERTY_TYPES, ROOF_TYPES } from "@/lib/quote/validate";
 import { loadSchedulingSettings } from "@/lib/scheduling/data";
 import { jobDurationMinutes, localDate, zonedToUtc } from "@/lib/scheduling/slots";
@@ -126,14 +128,15 @@ export async function manualBook(customerId: string, form: FormData) {
   const credit = credits?.[0];
   if (!credit) go(path, "error", "This customer has no cleaning available on that date. Add a cleaning first, or have them pay online.");
 
-  const { error } = await admin.rpc("book_cleaning", {
+  const { data: newBookingId, error } = await admin.rpc("book_cleaning", {
     p_customer: customerId, p_entitlement: credit.id, p_property: propertyId, p_technician: technicianId,
     p_start: start.toISOString(), p_end: end.toISOString(), p_buffer_minutes: settings.bufferMinutes, p_notes: text(form, "notes", 1000) || null,
   });
   if (error) {
     go(path, "error", error.code === "23P01" ? "That time overlaps another appointment for this technician (including travel time)." : `Couldn't book: ${error.message}`);
   }
-  go(path, "msg", `Booked for ${date} at ${time}. Let the customer know.`);
+  if (typeof newBookingId === "string") after(() => notifyBooking(admin, newBookingId, "booked", { notifyOwner: false }));
+  go(path, "msg", `Booked for ${date} at ${time}. The customer was emailed a confirmation.`);
 }
 
 // ---------------- Business settings and team ----------------

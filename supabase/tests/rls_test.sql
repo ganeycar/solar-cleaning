@@ -473,4 +473,44 @@ do $$ begin
 end $$;
 reset role;
 
+\echo 'T28 email log, unsubscribes, and job runs are staff-only; review link and mailing address are private'
+insert into public.email_log (idem_key, kind, to_email, subject, customer_id, status) values
+  ('test:1', 'quote_received', 'cust@test.local', 'Hi', '00000000-0000-0000-0000-00000000000b', 'sent');
+do $$ begin
+  begin
+    insert into public.email_log (idem_key, kind, to_email, subject, status) values ('test:1', 'x', 'a@b.co', 's', 'sent');
+    raise exception 'FAIL: duplicate email key allowed';
+  exception when unique_violation then null; end;
+  begin
+    insert into public.email_suppressions (email) values ('Mixed@Case.com');
+    raise exception 'FAIL: non-lowercase suppression allowed';
+  exception when check_violation then null; end;
+end $$;
+insert into public.email_suppressions (email) values ('gone@test.local');
+insert into public.job_runs (name, last_finished_at) values ('daily', now());
+update public.business_settings set review_url = 'https://g.page/r/x/review', mailing_address = 'PO Box 1' where id = 1;
+set role authenticated;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000b';
+do $$ begin
+  assert (select count(*) from public.email_log) = 0, 'customer cannot read the email log (even their own)';
+  assert (select count(*) from public.email_suppressions) = 0, 'customer cannot read suppressions';
+  assert (select count(*) from public.job_runs) = 0, 'customer cannot read job runs';
+  begin perform review_url from public.business_settings; raise exception 'FAIL: review_url readable';
+  exception when insufficient_privilege then null; end;
+  begin insert into public.email_suppressions (email) values ('x@test.local'); raise exception 'FAIL: customer inserted suppression';
+  exception when insufficient_privilege then null; end;
+end $$;
+set request.jwt.claim.sub = '00000000-0000-0000-0000-00000000000a';
+do $$ begin
+  assert (select count(*) from public.email_log) = 1, 'owner reads the email log';
+  assert (select count(*) from public.job_runs) = 1, 'owner reads job runs';
+end $$;
+reset role;
+set role anon;
+do $$ begin
+  begin perform mailing_address from public.business_settings; raise exception 'FAIL: anon read mailing address';
+  exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+
 \echo 'ALL DATABASE TESTS PASSED'

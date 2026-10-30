@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { notifyMembershipStarted, notifyOneTimePurchase, notifyPaymentFailed } from "@/lib/email/notify";
 import { localDate } from "@/lib/scheduling/slots";
 import { cleaningsEarned, membershipYear } from "./entitlements";
 import { idOf, invoiceSubscriptionId, subscriptionEnding, subscriptionPeriod, subscriptionPriceId, unixToIso } from "./logic";
@@ -86,14 +87,17 @@ async function onCheckoutCompleted(stripe: Stripe, db: SupabaseClient, session: 
       "issue cleaning",
     );
     await markQuoteConverted(db, quoteId);
+    await notifyOneTimePurchase(db, { customerId, paymentIntentId, amountCents: session.amount_total ?? 0, validUntil: until.toISOString().slice(0, 10) });
     return;
   }
 
   if (session.mode === "subscription") {
     const subId = idOf(session.subscription);
     if (!subId) throw new Error("Subscription checkout has no subscription id.");
-    await syncSubscription(stripe, db, subId);
+    const synced = await syncSubscription(stripe, db, subId);
     await markQuoteConverted(db, quoteId);
+    // California automatic renewal law: written acknowledgment of the terms.
+    if (synced) await notifyMembershipStarted(db, synced.id);
   }
 }
 
@@ -227,6 +231,10 @@ async function onInvoice(stripe: Stripe, db: SupabaseClient, inv: Loose, status:
     ),
     "record invoice payment",
   );
+
+  if (status === "failed" && amount && subscriptionRowId && customerId) {
+    await notifyPaymentFailed(db, { invoiceId: inv.id, subscriptionRowId, customerId, amountCents: amount });
+  }
 
   // Paying for a period earns cleanings; a failed payment never does.
   if (status === "succeeded" && subscriptionRowId && subId && periodStart) {

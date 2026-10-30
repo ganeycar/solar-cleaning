@@ -2,6 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 import { headers } from "next/headers";
+import { after } from "next/server";
+import { notifyQuoteReceived } from "@/lib/email/notify";
 import { getAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser } from "@/lib/supabase/server";
 import { calculateQuote, formatCents, type QuoteStatus } from "@/lib/pricing/engine";
@@ -128,6 +130,8 @@ async function processQuote(form: FormData): Promise<QuoteFormState> {
     console.error("quote insert failed", error.message);
     return { kind: "error", message: "Something went wrong saving your request. Please try again." };
   }
+
+  after(() => notifyQuoteReceived(db, reference));
 
   return {
     kind: "submitted",

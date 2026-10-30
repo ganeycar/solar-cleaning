@@ -2,6 +2,8 @@
 
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { notifyBooking } from "@/lib/email/notify";
 import { redirect } from "next/navigation";
 import { assignedBooking, requireTechnician } from "@/lib/auth/technician";
 import { IMAGE_EXT, sniffImageType } from "@/lib/quote/validate";
@@ -96,7 +98,8 @@ export async function completeJob(bookingId: string) {
     if (error.message.includes("JOB_NOT_IN_PROGRESS")) back(bookingId, "error", "Start the job (safety checklist) before completing it.");
     back(bookingId, "error", `Couldn't complete: ${error.message}`);
   }
-  back(bookingId, "msg", "Job completed. The customer can now see the photos and report.");
+  after(() => notifyBooking(admin, bookingId, "completed"));
+  back(bookingId, "msg", "Job completed. The customer was emailed their photos and report.");
 }
 
 /** Couldn't get access at the scheduled time: the cleaning counts as used (per policy). */
@@ -105,7 +108,8 @@ export async function reportNoAccess(bookingId: string, form: FormData) {
   const reason = text(form, "reason", 300) || "No access at appointment time";
   const { error } = await admin.rpc("cancel_booking", { p_booking: bookingId, p_reason: `No access: ${reason}`, p_return_cleaning: false, p_customer: null });
   if (error) back(bookingId, "error", `Couldn't record that: ${error.message}`);
-  back(bookingId, "msg", "Recorded as no access. The owner will follow up with the customer.");
+  after(() => notifyBooking(admin, bookingId, "no_access"));
+  back(bookingId, "msg", "Recorded as no access. The customer and owner were emailed.");
 }
 
 /** Unsafe to work (weather, roof, damage): stop, and the customer keeps the cleaning to rebook. */
@@ -116,5 +120,6 @@ export async function stopUnsafe(bookingId: string, form: FormData) {
   await admin.from("job_reports").upsert({ booking_id: bookingId, technician_id: tech.id, unsafe_conditions: reason }, { onConflict: "booking_id" });
   const { error } = await admin.rpc("cancel_booking", { p_booking: bookingId, p_reason: `Stopped for safety: ${reason}`, p_return_cleaning: true, p_customer: null });
   if (error) back(bookingId, "error", `Couldn't stop the job: ${error.message}`);
-  back(bookingId, "msg", "Job stopped for safety. The customer's cleaning was returned so they can rebook.");
+  after(() => notifyBooking(admin, bookingId, "safety"));
+  back(bookingId, "msg", "Job stopped for safety. The customer's cleaning was returned and they were emailed to rebook.");
 }

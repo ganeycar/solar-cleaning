@@ -56,6 +56,16 @@ export default async function AdminBusiness({ searchParams }: { searchParams: Pr
             </div>
           </fieldset>
 
+          <fieldset className="grid gap-4 sm:grid-cols-2">
+            <legend className="mb-2 text-sm font-bold">Emails to customers</legend>
+            <Field label="Review link (https://…)" hint="Your Google review link. Added to the email customers get after each cleaning. Leave blank until you have one.">
+              <input name="reviewUrl" defaultValue={b.review_url ?? ""} className="field" />
+            </Field>
+            <Field label="Mailing address for emails" hint="Required by law in follow-up emails. A PO box or mailbox service is fine; it isn't shown on the website.">
+              <input name="mailingAddress" defaultValue={b.mailing_address ?? ""} className="field" />
+            </Field>
+          </fieldset>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Google Business Profile, Yelp, Facebook links (one per line)" hint="Helps Google and AI tools connect your listings to this website.">
               <textarea name="profileLinks" rows={4} defaultValue={links.join("\n")} className="field" />

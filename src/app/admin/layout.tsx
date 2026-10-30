@@ -9,11 +9,13 @@ export const dynamic = "force-dynamic";
 const TABS = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/quotes", label: "Quotes" },
+  { href: "/admin/leads", label: "Leads & emails" },
   { href: "/admin/schedule", label: "Schedule" },
   { href: "/admin/customers", label: "Customers" },
   { href: "/admin/pricing", label: "Plans & prices" },
   { href: "/admin/settings", label: "Quote pricing & areas" },
   { href: "/admin/business", label: "Business" },
+  { href: "/admin/launch", label: "Launch" },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {

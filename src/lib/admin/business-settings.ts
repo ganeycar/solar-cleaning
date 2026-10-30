@@ -17,6 +17,8 @@ export interface BusinessSettingsInput {
   insurance_verified: boolean;
   profile_links: string[];
   economics: { costPerCleaningCents: number };
+  review_url: string | null;
+  mailing_address: string | null;
 }
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
@@ -67,6 +69,11 @@ export function parseBusinessSettings(get: (k: string) => string | null): Busine
   const license_verified = get("licenseVerified") === "on" && Boolean(license_info);
   const insurance_verified = get("insuranceVerified") === "on" && Boolean(insurance_info);
 
+  const reviewRaw = t("reviewUrl", 500);
+  const review_url = reviewRaw ? httpsUrl(reviewRaw) : null;
+  if (reviewRaw && !review_url) errors.push("Review link must start with https://");
+  const mailing_address = t("mailingAddress", 200) || null;
+
   const costRaw = t("costPerCleaning", 20);
   const cost = costRaw ? dollarsToCents(costRaw, { allowZero: true, max: 10_000 }) : 0;
   if (cost == null) errors.push("Cost per cleaning must be a dollar amount.");
@@ -88,6 +95,8 @@ export function parseBusinessSettings(get: (k: string) => string | null): Busine
       insurance_verified,
       profile_links,
       economics: { costPerCleaningCents: cost ?? 0 },
+      review_url,
+      mailing_address,
     },
   };
 }
