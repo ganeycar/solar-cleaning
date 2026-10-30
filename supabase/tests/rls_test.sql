@@ -218,7 +218,7 @@ reset role;
 \echo 'T15 public can read business settings but not internal Stripe ids'
 set role anon;
 do $$ begin
-  assert (select business_name from public.business_settings where id = 1) = 'Solar Cleaning Co.', 'anon reads business name';
+  assert (select business_name from public.business_settings where id = 1) = 'Solano Solar Cleaning', 'anon reads business name';
   begin perform stripe_portal_config_id from public.business_settings; raise exception 'FAIL: anon read portal config id';
   exception when insufficient_privilege then null; end;
 end $$;
